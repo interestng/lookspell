@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 
 // base is the repo name so github pages serves assets from the right path
 export default defineConfig({
-  base: process.env.GH_PAGES ? '/lookspell/' : '/',
+  base: process.env.GH_PAGES ? '/gaze-communicator/' : '/',
   plugins: [basicSsl()],
   build: {
     rollupOptions: {
