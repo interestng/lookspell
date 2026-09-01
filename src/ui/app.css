@@ -210,8 +210,11 @@
 .preview[data-mirror] {
   transform: scaleX(-1);
 }
+/* keep the video decoding when hidden, display none can pause it on ios */
 .preview[hidden] {
-  display: none;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .overlay {

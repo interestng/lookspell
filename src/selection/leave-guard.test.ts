@@ -22,3 +22,15 @@ describe('leave guard', () => {
     expect(g.filter(4)).toBe(4)
   })
 })
+
+describe('leave guard blockNext', () => {
+  it('blocks the first slot the pointer lands on until it leaves', () => {
+    const g = createLeaveGuard()
+    g.blockNext()
+    expect(g.filter(null)).toBeNull()
+    expect(g.filter(4)).toBeNull()
+    expect(g.filter(4)).toBeNull()
+    expect(g.filter(2)).toBe(2)
+    expect(g.filter(4)).toBe(4)
+  })
+})

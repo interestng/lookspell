@@ -81,6 +81,7 @@ let study: StudySession | null = null
 let mouseMode = false
 let mouse: Point = { x: -1, y: -1 }
 let frameCount = 0
+let overlayWasVisible = false
 let lowLight = false
 
 loadWords(`${import.meta.env.BASE_URL}words.txt`)
@@ -111,15 +112,19 @@ const calibrate = async () => {
   calibrating = true
   pointerLayer.hide()
   const size = screenSize()
-  calibration = await runCalibration(overlay.el, {
+  const cal = await runCalibration(overlay.el, {
     mode: settings.inputMode,
     screen: size,
     samples: () => latest,
   })
+  calibrating = false
+  guard.blockNext()
+  // no usable samples (face never seen) would map everything to one corner, so keep none
+  if (!Number.isFinite(cal.rmsPx)) return
+  calibration = cal
   calibratedFor = size
   pointer = createPointer(size)
   localStorage.setItem(storageKey(settings.inputMode, size), serializeCalibration(calibration))
-  calibrating = false
 }
 
 window.addEventListener('resize', () => {
@@ -292,7 +297,7 @@ const frame = (t: number) => {
   const faceOk = updateFace(s, t)
   const lostLong = !faceOk && faceLostSince !== null && t - faceLostSince > FACE_LOST_MS
 
-  if (!calibration && !calibrating && !overlay.visible() && !mouseMode) {
+  if (!calibration && !calibrating && !overlay.visible() && !mouseMode && faceOk) {
     void calibrate()
   }
 
@@ -325,9 +330,14 @@ const frame = (t: number) => {
   else pointerLayer.hide()
 
   if (overlay.visible()) {
+    overlayWasVisible = true
     driveOverlay(p, confirm, t)
     requestAnimationFrame(frame)
     return
+  }
+  if (overlayWasVisible) {
+    overlayWasVisible = false
+    guard.blockNext()
   }
 
   const board = boards[boardState.boardId] ?? boards.home
