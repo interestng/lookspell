@@ -3,6 +3,7 @@ import { DEFAULT_DWELL, type DwellConfig } from './config'
 
 export { DEFAULT_DWELL, DWELL_RANGE, BLINK, type DwellConfig } from './config'
 export { createBlinkDetector } from './blink'
+export { createLeaveGuard } from './leave-guard'
 
 export type DwellState = 'idle' | 'hovering' | 'cooldown' | 'paused'
 export type DwellStatus = { state: DwellState; zone: string | null; progress: number }

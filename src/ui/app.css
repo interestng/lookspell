@@ -362,3 +362,22 @@
   font-weight: 500;
   color: var(--muted);
 }
+
+/* gaze targets inside overlays: --p is dwell progress 0..1, painted as a fill from the left */
+.gz {
+  --p: 0;
+  min-height: 56px;
+  background-image: linear-gradient(
+    to right,
+    var(--ring-track) calc(var(--p) * 100%),
+    transparent 0
+  );
+}
+.gz[data-hover] {
+  border-color: var(--accent) !important;
+}
+
+.shout {
+  font-size: clamp(2.4rem, 8vw, 6rem) !important;
+  overflow-wrap: anywhere;
+}

@@ -1,7 +1,7 @@
 import type { BoardSet } from './types'
 import { board, go, inert, letterGroups, say, space, speak, word, z } from './make'
 
-const GROUPS = ['abcd', 'efgh', 'ijkl', 'mnop', 'qrst', 'uvwxyz']
+const GROUPS = ['abcdef', 'ghijkl', 'mnopqr', 'stuvwx', 'yz']
 
 const groupTail = () => [go('Back', 'spell'), space(), go('Menu', 'menu')]
 
@@ -30,6 +30,7 @@ const boards = [
   ]),
   board('spell', [
     ...GROUPS.map((g) => go(g.toUpperCase(), `group-${g}`)),
+    go('Home', 'home'),
     go('Words', 'words'),
     space(),
     go('Menu', 'menu'),
