@@ -5,6 +5,7 @@ analysis/data/*
 analysis/.ipynb_checkpoints
 analysis/.venv
 public/results.json
+analysis/wpm-by-mode.png
 CLAUDE.md
 docs/superpowers/
 .claude/
