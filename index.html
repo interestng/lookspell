@@ -3,9 +3,219 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="description"
+      content="A communication board for people who can only move their eyes, running in a browser on any device with a front camera."
+    />
     <title>gaze-communicator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,300&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono&display=swap"
+    />
+    <script type="module" src="./landing/landing.ts"></script>
   </head>
   <body>
-    <main><a href="./app/">open the app</a></main>
+    <header class="masthead">
+      <span class="wordmark">gaze‑communicator</span>
+      <nav class="masthead-nav">
+        <a href="#how">How it works</a>
+        <a href="#results">Pilot</a>
+        <a href="#limits">Limits</a>
+        <a href="#source">Source</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="opening">
+        <h1 class="statement">
+          A device that lets someone speak with their eyes costs
+          <span class="num">$3,000</span> to <span class="num">$15,000</span>. This one needs a
+          webcam.
+        </h1>
+        <aside class="figures" aria-label="cost comparison">
+          <dl>
+            <div>
+              <dt>Commercial eye‑gaze communicator</dt>
+              <dd>$3,000 – $15,000 <small>device, mount, software licence</small></dd>
+            </div>
+            <div>
+              <dt>Typical insurance wait</dt>
+              <dd>Months <small>prior authorisation, trial, delivery</small></dd>
+            </div>
+            <div>
+              <dt>This page</dt>
+              <dd>$0 <small>runs in the browser you already have</small></dd>
+            </div>
+          </dl>
+          <a class="open" href="./app/">Open the board <span aria-hidden="true">→</span></a>
+        </aside>
+      </section>
+
+      <section class="lede">
+        <p>
+          People with ALS, brainstem stroke, or high spinal injury often keep full control of one
+          thing: where they look. Commercial eye trackers turn that into speech, but they are priced
+          as medical equipment and rationed like it. This project asks how much of that capability a
+          laptop's front camera can recover, and measures the answer honestly.
+        </p>
+      </section>
+
+      <section class="demo" id="demo">
+        <div class="section-head">
+          <span class="section-num">01</span>
+          <h2>Selection without a hand</h2>
+        </div>
+        <div class="demo-grid">
+          <div class="demo-copy">
+            <p>
+              A webcam knows where you are looking to within a few degrees, about the size of a golf
+              ball at arm's length. That is far too coarse for a keyboard, so the board has at most
+              nine large zones and letters are grouped. To choose one you rest your eyes on it. A
+              ring fills. When it closes, the zone is selected and the board moves on.
+            </p>
+            <p class="fine">
+              Try it with the cursor. Real use replaces the cursor with your gaze or your head.
+            </p>
+          </div>
+          <div class="demo-zone-wrap">
+            <button class="demo-zone" id="demo-zone" type="button" aria-live="polite">
+              <span class="zone-label" id="demo-label">Yes</span>
+              <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="ring-track" cx="50" cy="50" r="44" />
+                <circle class="ring-fill" id="demo-ring" cx="50" cy="50" r="44" />
+              </svg>
+            </button>
+            <p class="demo-said" id="demo-said" aria-live="polite"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="how" id="how">
+        <div class="section-head">
+          <span class="section-num">02</span>
+          <h2>From camera to voice</h2>
+        </div>
+        <figure class="pipeline">
+          <svg viewBox="0 0 1200 260" role="img" aria-labelledby="pipe-title" class="pipeline-svg">
+            <title id="pipe-title">
+              Six stages: camera, face landmarks, calibration, smoothing, dwell, speech
+            </title>
+            <g class="pipe-nodes" font-family="var(--font-text)">
+              <g transform="translate(20 40)">
+                <rect width="170" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Camera</text>
+                <text x="16" y="62" class="node-sub">640 × 480, front</text>
+                <text x="16" y="84" class="node-sub">never uploaded</text>
+              </g>
+              <g transform="translate(222 40)">
+                <rect width="170" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Face mesh</text>
+                <text x="16" y="62" class="node-sub">478 landmarks</text>
+                <text x="16" y="84" class="node-sub">iris, eyelids, pose</text>
+              </g>
+              <g transform="translate(424 40)">
+                <rect width="170" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Calibration</text>
+                <text x="16" y="62" class="node-sub">9 dots, 14 seconds</text>
+                <text x="16" y="84" class="node-sub">quadratic fit</text>
+              </g>
+              <g transform="translate(626 40)">
+                <rect width="170" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Smoothing</text>
+                <text x="16" y="62" class="node-sub">one‑euro filter</text>
+                <text x="16" y="84" class="node-sub">no jitter, no lag</text>
+              </g>
+              <g transform="translate(828 40)">
+                <rect width="170" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Dwell</text>
+                <text x="16" y="62" class="node-sub">900 ms on a zone</text>
+                <text x="16" y="84" class="node-sub">or a long blink</text>
+              </g>
+              <g transform="translate(1030 40)">
+                <rect width="150" height="110" rx="6" />
+                <text x="16" y="34" class="node-title">Speech</text>
+                <text x="16" y="62" class="node-sub">on‑device voice</text>
+                <text x="16" y="84" class="node-sub">word prediction</text>
+              </g>
+            </g>
+            <g class="pipe-arrows" fill="none">
+              <path d="M190 95 H222" />
+              <path d="M392 95 H424" />
+              <path d="M594 95 H626" />
+              <path d="M796 95 H828" />
+              <path d="M998 95 H1030" />
+            </g>
+            <g class="pipe-caption">
+              <text x="20" y="215">
+                Every stage runs in the browser. Nothing leaves the device, which is also why it
+                costs nothing to run.
+              </text>
+            </g>
+          </svg>
+        </figure>
+        <div class="how-notes">
+          <p>
+            Two pointing modes share the same pipeline. <em>Gaze</em> mode reads where the iris sits
+            inside the eye. <em>Head</em> mode reads the angle of the face, which a webcam measures
+            far more accurately, for people who can still move their neck.
+          </p>
+          <p>
+            Every piece of logic, from the least‑squares calibration to the dwell state machine, is
+            a pure function with its own tests. The camera and the screen are the only two things
+            that touch the outside world.
+          </p>
+        </div>
+      </section>
+
+      <section class="results" id="results">
+        <div class="section-head">
+          <span class="section-num">03</span>
+          <h2>Pilot</h2>
+        </div>
+        <div id="results-body">
+          <p>Loading results…</p>
+        </div>
+      </section>
+
+      <section class="limits" id="limits">
+        <div class="section-head">
+          <span class="section-num">04</span>
+          <h2>What it cannot do yet</h2>
+        </div>
+        <ol class="limit-list">
+          <li>
+            <strong>Gaze is coarse.</strong> A webcam cannot resolve where on a keyboard you are
+            looking. Nine zones is the honest ceiling on a laptop; six on a phone.
+          </li>
+          <li>
+            <strong>Light matters.</strong> A window behind the user, or a dim room, degrades
+            tracking. The app warns, but cannot fix it.
+          </li>
+          <li>
+            <strong>Not clinically validated.</strong> Testers so far are healthy volunteers. People
+            with ALS have different eye movement, fatigue, and posture. Their results will differ.
+          </li>
+          <li>
+            <strong>Small pilot.</strong> The numbers above come from a handful of sessions. They
+            show the tool works and roughly how fast it is. They do not prove anything
+            statistically.
+          </li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="colophon" id="source">
+      <p>
+        Built by a high‑school student as a biomedical engineering project, 2026.
+        <a href="https://github.com/avira/gaze-communicator">Source on GitHub</a>, MIT licence.
+      </p>
+      <p class="fine">
+        Set in Fraunces and IBM Plex Sans. Face tracking by MediaPipe. No analytics on this page.
+      </p>
+    </footer>
   </body>
 </html>
