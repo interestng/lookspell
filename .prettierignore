@@ -1,0 +1,6 @@
+dist
+node_modules
+analysis
+public/words.txt
+package-lock.json
+*.md

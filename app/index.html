@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="theme-color" content="#f4f1ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)" />
+    <title>Lookspell</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono&display=swap"
+    />
+    <script type="module" src="../src/ui/main.ts"></script>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="strip" id="strip">
+        <div class="strip-target" id="strip-target" aria-live="polite" hidden></div>
+        <div class="strip-text" id="strip-text" aria-live="polite"></div>
+        <div class="strip-preds" id="strip-preds"></div>
+      </header>
+      <main class="zones" id="zones" role="group" aria-label="communication board"></main>
+      <div class="pointer" id="pointer" aria-hidden="true" hidden></div>
+      <aside class="status" id="status" role="status"></aside>
+      <video class="preview" id="preview" playsinline muted hidden></video>
+      <div class="overlay" id="overlay" hidden></div>
+    </div>
+  </body>
+</html>

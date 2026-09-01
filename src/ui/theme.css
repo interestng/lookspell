@@ -1,0 +1,63 @@
+/*
+  design decisions
+  paper and ink, one warm accent. the board is a printed page, not a dashboard.
+  display face fraunces (soft serif, optical sizes) for labels and headings, ibm plex sans for everything else.
+  light: ink #141311 on paper #f4f1ea is 15:1, muted #4f4a43 on paper is 7.6:1.
+  dark: ink #f1ede4 on #121110 is 15:1, muted #b3ab9d on #121110 is 8.4:1.
+  accent is never used for small text, only the ring, outlines and the dot.
+*/
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ea;
+  --ink: #141311;
+  --zone: #fffdf8;
+  --zone-ink: #141311;
+  --accent: #b42d1c;
+  --muted: #4f4a43;
+  --line: #cfc9bc;
+  --ring-track: #d9d4c8;
+  --radius: 6px;
+  --gap: clamp(6px, 1vw, 14px);
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-text: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121110;
+    --ink: #f1ede4;
+    --zone: #1f1d1a;
+    --zone-ink: #f1ede4;
+    --accent: #ff7a5c;
+    --muted: #b3ab9d;
+    --line: #3a3630;
+    --ring-track: #33302b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

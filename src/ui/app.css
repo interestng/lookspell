@@ -1,0 +1,495 @@
+.app {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100dvh;
+  padding: var(--gap);
+  padding-top: max(var(--gap), env(safe-area-inset-top));
+  padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
+  gap: var(--gap);
+  overflow: hidden;
+}
+
+/* fixed heights so text growth never moves the zones */
+.strip {
+  display: grid;
+  grid-template-rows: 1.4em 1.5em 1.4em;
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-display);
+  min-height: 4.6em;
+  font-size: clamp(1.1rem, 2.6vw, 1.8rem);
+  line-height: 1.3;
+}
+
+.strip-target {
+  font-family: var(--font-text);
+  font-size: 0.6em;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.strip-target::before {
+  content: 'type: ';
+}
+.strip-target:empty::before {
+  content: '';
+}
+/* keep the row reserved so showing a study target never shifts the zones */
+.strip-target[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.strip-text {
+  overflow: hidden;
+  white-space: pre;
+  /* rtl container with plaintext child keeps the newest characters visible on overflow */
+  direction: rtl;
+  text-align: left;
+}
+.strip-text > span {
+  unicode-bidi: plaintext;
+  direction: ltr;
+}
+.strip-text > span:empty::after {
+  content: 'look at a zone to begin';
+  color: var(--muted);
+  font-style: italic;
+}
+.strip-text[data-speaking] {
+  color: var(--accent);
+}
+
+.strip-preds {
+  font-family: var(--font-text);
+  font-size: 0.6em;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+  word-spacing: 1.2em;
+}
+
+.zones {
+  display: grid;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.zone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25em 0.4em;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--zone);
+  color: var(--zone-ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.4rem, 4.2vw, 3.2rem);
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.zone:focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: -4px;
+}
+.zone[data-hover] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 4px var(--accent);
+}
+.zone[data-inert] {
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.zone-label {
+  position: relative;
+  z-index: 1;
+  overflow-wrap: anywhere;
+}
+
+.ring {
+  position: absolute;
+  inset: 6px;
+  width: auto;
+  height: auto;
+  max-width: calc(100% - 12px);
+  max-height: calc(100% - 12px);
+  aspect-ratio: 1;
+  margin: auto;
+  pointer-events: none;
+  transform: rotate(-90deg);
+  opacity: 0;
+}
+.zone[data-hover] .ring {
+  opacity: 1;
+}
+.ring circle {
+  fill: none;
+  stroke-width: 5;
+}
+.ring-track {
+  stroke: var(--ring-track);
+}
+.ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: 276.46;
+}
+
+.pointer {
+  position: fixed;
+  top: -14px;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+  will-change: transform;
+  z-index: 40;
+}
+.pointer[data-unsure] {
+  width: 18px;
+  height: 18px;
+  top: -9px;
+  left: -9px;
+  opacity: 0.5;
+}
+
+.status {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  z-index: 30;
+}
+@media (max-width: 600px) {
+  .status {
+    top: auto;
+    right: auto;
+    left: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+.status[data-face='lost'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.preview {
+  position: fixed;
+  right: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  width: 160px;
+  aspect-ratio: 4 / 3;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: #000;
+  object-fit: cover;
+  z-index: 30;
+}
+.preview[data-mirror] {
+  transform: scaleX(-1);
+}
+/* keep the video decoding when hidden, display none can pause it on ios */
+.preview[hidden] {
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 50;
+  overflow: auto;
+}
+.overlay[hidden] {
+  display: none;
+}
+
+/* calibration */
+.cal {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.cal-hint {
+  position: absolute;
+  top: 12%;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1rem;
+}
+.cal-dot {
+  position: absolute;
+  top: -18px;
+  left: -18px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow:
+    0 0 0 6px var(--bg),
+    0 0 0 8px var(--accent);
+  will-change: transform;
+}
+
+/* overlay screens: permission, error, settings, study */
+.sheet {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(24px, 6vh, 64px) clamp(20px, 5vw, 48px);
+}
+.sheet h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+  line-height: 1.1;
+  margin: 0 0 0.6em;
+}
+.sheet p {
+  max-width: 60ch;
+  margin: 0 0 1em;
+}
+.sheet .fine {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.sheet ol {
+  padding-left: 1.2em;
+}
+
+.big-button {
+  display: inline-block;
+  padding: 0.7em 1.4em;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--zone);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+.big-button:hover,
+.big-button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.form {
+  display: grid;
+  gap: 1.2rem;
+}
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+.field > span {
+  font-weight: 500;
+}
+.field .choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.field label.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.field label.choice:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--zone);
+}
+.field input[type='text'],
+.field select {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--zone);
+  color: var(--ink);
+  min-height: 44px;
+}
+.field input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.results {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.results th,
+.results td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+.results th {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* gaze targets inside overlays: --p is dwell progress 0..1, painted as a fill from the left */
+.gz {
+  --p: 0;
+  min-height: 56px;
+  background-image: linear-gradient(
+    to right,
+    var(--ring-track) calc(var(--p) * 100%),
+    transparent 0
+  );
+}
+.gz[data-hover] {
+  border-color: var(--accent) !important;
+}
+
+.shout {
+  font-size: clamp(2.4rem, 8vw, 6rem) !important;
+  overflow-wrap: anywhere;
+}
+
+/* selection confirmation: a quick pulse on the zone and the text, transform and color only */
+@keyframes zone-confirm {
+  0% {
+    box-shadow: inset 0 0 0 4px var(--accent);
+    background-color: var(--accent);
+    color: var(--bg);
+  }
+  100% {
+    background-color: var(--zone);
+    color: var(--zone-ink);
+  }
+}
+.zone[data-selected] {
+  animation: zone-confirm 320ms ease-out;
+}
+@keyframes text-confirm {
+  0% {
+    color: var(--accent);
+    transform: translateY(2px);
+  }
+  100% {
+    color: var(--ink);
+    transform: none;
+  }
+}
+.strip-text[data-added] {
+  animation: text-confirm 280ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zone[data-selected],
+  .strip-text[data-added] {
+    animation: none;
+  }
+}
+
+/* calibration dot carries a countdown ring for the collection window */
+.cal-dot svg {
+  position: absolute;
+  inset: -14px;
+  width: calc(100% + 28px);
+  height: calc(100% + 28px);
+  transform: rotate(-90deg);
+}
+.cal-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: 276.46;
+}
+.cal-count {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  margin-left: 0.6em;
+}
+
+/* start screen and settings: stacked descriptive choices */
+.choices.stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+.card-choice {
+  align-items: flex-start !important;
+  padding: 0.9rem 1rem !important;
+  max-width: 44rem;
+}
+.card-choice input {
+  margin-top: 0.35rem;
+}
+.field textarea {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--zone);
+  color: var(--ink);
+  resize: vertical;
+  width: 100%;
+  max-width: 32rem;
+}
+
+/* instruction card between calibration phases, the only text on that screen */
+.cal-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 34rem;
+  padding: 0 24px;
+  text-align: center;
+}
+.cal-card h2 {
+  margin: 0 0 0.4em;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.05;
+}
+.cal-card p {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--muted);
+}
+.cal-card[hidden],
+.cal-dot[hidden] {
+  display: none;
+}
