@@ -34,7 +34,6 @@ export const createBoardScreen = (root: HTMLElement, zoneCount: ZoneCount) => {
       b.className = 'zone'
       b.type = 'button'
       b.tabIndex = -1
-      b.setAttribute('role', 'gridcell')
       b.innerHTML = `<span class="zone-label"></span><svg class="ring" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-track" cx="50" cy="50" r="${RING_R}"/><circle class="ring-fill" cx="50" cy="50" r="${RING_R}"/></svg>`
       zonesEl.append(b)
       return b

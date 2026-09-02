@@ -85,6 +85,8 @@ let predictor = createPredictor([])
 let tracker: Tracker | null = null
 let latest: TrackingSample | null = null
 let calibration: Calibration | null = null
+// a fresh fit the user has not accepted yet, drives the pointer on the result screen only
+let pendingCalibration: Calibration | null = null
 let calibrating = false
 let faceLostSince: number | null = null
 let faceLostReported = false
@@ -144,7 +146,9 @@ const calibrate = async () => {
   })
   calibrating = false
   guard.blockNext()
-  if (!Number.isFinite(cal.rmsPx)) {
+  pendingCalibration = Number.isFinite(cal.rmsPx) ? cal : null
+  pointer = makePointer()
+  if (!pendingCalibration) {
     showCalibrationResult(
       overlay,
       null,
@@ -157,10 +161,14 @@ const calibrate = async () => {
     overlay,
     cal,
     () => {
+      pendingCalibration = null
       useCalibration(cal, size)
       overlay.hide()
     },
-    () => overlay.hide(),
+    () => {
+      pendingCalibration = null
+      overlay.hide()
+    },
   )
 }
 
@@ -396,10 +404,9 @@ const frame = (t: number) => {
   if (mouseMode) {
     p = { ...mouse, confident: mouse.x >= 0 }
   } else {
+    const active = calibration ?? pendingCalibration
     const raw =
-      s && faceOk && calibration
-        ? applyCalibration(calibration, featuresOf(s, settings.inputMode))
-        : null
+      s && faceOk && active ? applyCalibration(active, featuresOf(s, settings.inputMode)) : null
     p = pointer.update(raw, t)
     if (lostLong) p = { ...p, confident: false }
   }
