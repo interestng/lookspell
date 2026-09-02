@@ -3,6 +3,7 @@ import { phraseSlots, type ZoneCount } from '../../board'
 import type { Overlay } from '../overlay'
 import { escapeHtml } from '../overlay'
 import type { Settings } from '../settings-store'
+import { pickMode } from './start'
 
 type Deps = {
   settings: Settings
@@ -49,7 +50,8 @@ export const showSettings = (overlay: Overlay, deps: Deps) => {
         <div class="field">
           <span>Point with</span>
           <div class="choices">
-            ${radio('inputMode', 'head', 'Head', s.inputMode)}
+            ${radio('inputMode', 'both', 'Head and eyes', s.inputMode)}
+            ${radio('inputMode', 'head', 'Head only', s.inputMode)}
             ${radio('inputMode', 'gaze', 'Eyes only', s.inputMode)}
           </div>
           <span class="fine">Each mode keeps its own calibration. Switching may ask you to calibrate.</span>
@@ -67,7 +69,7 @@ export const showSettings = (overlay: Overlay, deps: Deps) => {
           <span class="fine">Shorter is faster but easier to trigger by accident.</span>
         </div>
         <div class="field">
-          <span>Pointer steadiness (eyes only)</span>
+          <span>Pointer steadiness (eyes, and head and eyes)</span>
           <div class="choices">
             ${radio('smoothing', 'low', 'Quick', s.smoothing)}
             ${radio('smoothing', 'medium', 'Balanced', s.smoothing)}
@@ -121,7 +123,7 @@ export const showSettings = (overlay: Overlay, deps: Deps) => {
     const smoothing = data.get('smoothing')
     const next: Settings = {
       ...s,
-      inputMode: data.get('inputMode') === 'gaze' ? 'gaze' : 'head',
+      inputMode: pickMode(data.get('inputMode')),
       confirmMode: data.get('confirmMode') === 'blink' ? 'blink' : 'dwell',
       dwellMs: Number(data.get('dwellMs')) || s.dwellMs,
       smoothing: smoothing === 'low' || smoothing === 'high' ? smoothing : 'medium',

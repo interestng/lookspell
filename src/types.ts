@@ -14,5 +14,6 @@ export type TrackingSample = {
 
 export type Point = { x: number; y: number }
 export type PointerState = Point & { confident: boolean }
-export type InputMode = 'gaze' | 'head'
+// both: head pose is the primary signal and the iris adds a fine offset
+export type InputMode = 'gaze' | 'head' | 'both'
 export type ConfirmMode = 'dwell' | 'blink'

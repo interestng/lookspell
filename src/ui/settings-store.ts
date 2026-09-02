@@ -20,7 +20,7 @@ export type Settings = {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  inputMode: 'head',
+  inputMode: 'both',
   confirmMode: 'dwell',
   dwellMs: DEFAULT_DWELL.dwellMs,
   smoothing: 'medium',

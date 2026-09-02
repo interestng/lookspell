@@ -164,9 +164,11 @@
         </figure>
         <div class="how-notes">
           <p>
-            Two pointing modes share the same pipeline. <em>Gaze</em> mode reads where the iris sits
-            inside the eye. <em>Head</em> mode reads the angle of the face, which a webcam measures
-            far more accurately, for people who can still move their neck.
+            Three pointing modes share the same pipeline. <em>Head</em> mode reads the angle of the
+            face, which a webcam measures well. <em>Eyes</em> mode reads where the iris sits between
+            the eye corners plus how open the lids are, for people who can move nothing else.
+            <em>Head and eyes</em> fits both at once: the head gives a steady position and the eyes
+            fine-tune it, which is how people look at things anyway.
           </p>
           <p>
             Every piece of logic, from the least‑squares calibration to the dwell state machine, is

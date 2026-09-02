@@ -3,6 +3,8 @@ import type { Overlay } from '../overlay'
 
 export type StartChoice = { inputMode: InputMode; confirmMode: ConfirmMode }
 
+export const pickMode = (v: unknown): InputMode => (v === 'gaze' || v === 'head' ? v : 'both')
+
 const choice = (name: string, value: string, checked: boolean, title: string, body: string) => `
   <label class="choice card-choice">
     <input type="radio" name="${name}" value="${value}" ${checked ? 'checked' : ''} />
@@ -22,7 +24,8 @@ export const showStart = (
         <div class="field">
           <span>How will you point?</span>
           <div class="choices stack">
-            ${choice('inputMode', 'head', current.inputMode === 'head', 'With my head', 'Turn your head slightly to move the pointer. A webcam measures this well. Best if you can move your neck at all.')}
+            ${choice('inputMode', 'both', current.inputMode === 'both', 'Head and eyes together', 'Look at things the natural way: turn your head a little and let your eyes finish. The head gives a steady position and the eyes fine-tune it. Start here.')}
+            ${choice('inputMode', 'head', current.inputMode === 'head', 'With my head only', 'Turn your head to move the pointer, eyes can rest. Steady and reliable, a bit slower.')}
             ${choice('inputMode', 'gaze', current.inputMode === 'gaze', 'With my eyes only', 'Keep your head still and move your eyes. Works when nothing else moves, but a webcam sees eyes coarsely, so expect a shakier pointer and larger misses.')}
           </div>
         </div>
@@ -43,7 +46,7 @@ export const showStart = (
     e.preventDefault()
     const d = new FormData(form)
     onStart({
-      inputMode: d.get('inputMode') === 'gaze' ? 'gaze' : 'head',
+      inputMode: pickMode(d.get('inputMode')),
       confirmMode: d.get('confirmMode') === 'blink' ? 'blink' : 'dwell',
     })
   })

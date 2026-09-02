@@ -3,6 +3,7 @@ import { STUDY_PHRASES } from '../../study'
 import type { ConfirmMode, InputMode } from '../../types'
 import type { Overlay } from '../overlay'
 import { escapeHtml } from '../overlay'
+import { pickMode } from './start'
 
 export type StudyInit = { tester: string; mode: InputMode; confirm: ConfirmMode }
 
@@ -19,8 +20,9 @@ export const showStudyForm = (
       <form class="form" id="study-form">
         <label class="field"><span>Tester id</span><input type="text" name="tester" required autocomplete="off" placeholder="p1" /></label>
         <div class="field"><span>Point with</span><div class="choices">
-          <label class="choice"><input type="radio" name="mode" value="gaze" ${defaults.mode === 'gaze' ? 'checked' : ''}/> Eyes</label>
+          <label class="choice"><input type="radio" name="mode" value="both" ${defaults.mode === 'both' ? 'checked' : ''}/> Head and eyes</label>
           <label class="choice"><input type="radio" name="mode" value="head" ${defaults.mode === 'head' ? 'checked' : ''}/> Head</label>
+          <label class="choice"><input type="radio" name="mode" value="gaze" ${defaults.mode === 'gaze' ? 'checked' : ''}/> Eyes</label>
         </div></div>
         <div class="field"><span>Select by</span><div class="choices">
           <label class="choice"><input type="radio" name="confirm" value="dwell" ${defaults.confirm === 'dwell' ? 'checked' : ''}/> Dwell</label>
@@ -38,7 +40,7 @@ export const showStudyForm = (
     const d = new FormData(form)
     onStart({
       tester: String(d.get('tester') || 'anon').trim(),
-      mode: d.get('mode') === 'head' ? 'head' : 'gaze',
+      mode: pickMode(d.get('mode')),
       confirm: d.get('confirm') === 'blink' ? 'blink' : 'dwell',
     })
   })

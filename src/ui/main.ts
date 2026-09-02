@@ -69,14 +69,12 @@ const dwell = createDwellMachine({ dwellMs: settings.dwellMs })
 const blink = createBlinkDetector()
 const guard = createLeaveGuard()
 
-const makePointer = () =>
-  settings.inputMode === 'gaze'
-    ? createPointer(screenSize(), {
-        minCutoff: SMOOTHING_CUTOFF[settings.smoothing],
-        beta: 0.002,
-        median: true,
-      })
-    : createPointer(screenSize())
+const makePointer = () => {
+  if (settings.inputMode === 'head') return createPointer(screenSize())
+  // the iris term brings its noise along in both and gaze modes, combined mode needs less damping
+  const cutoff = SMOOTHING_CUTOFF[settings.smoothing] * (settings.inputMode === 'both' ? 1.6 : 1)
+  return createPointer(screenSize(), { minCutoff: cutoff, beta: 0.002, median: true })
+}
 
 let pointer = makePointer()
 let calibratedFor = screenSize()

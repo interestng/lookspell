@@ -25,10 +25,15 @@ const lerp = (a: number, b: number, f: number) => a + (b - a) * f
 const ease = (f: number) => (1 - Math.cos(Math.PI * f)) / 2
 
 // gaze mode adds head yaw and pitch (cancels small head movements) and eyelid openness (vertical cue)
-export const featuresOf = (s: TrackingSample, mode: InputMode): Features =>
-  mode === 'gaze'
-    ? { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch, c: s.gaze.open }
-    : { u: s.head.yaw, v: s.head.pitch }
+export const featuresOf = (s: TrackingSample, mode: InputMode): Features => {
+  if (mode === 'gaze') {
+    return { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch, c: s.gaze.open }
+  }
+  if (mode === 'both') {
+    return { u: s.head.yaw, v: s.head.pitch, a: s.gaze.x, b: s.gaze.y, c: s.gaze.open }
+  }
+  return { u: s.head.yaw, v: s.head.pitch }
+}
 
 type Opts = {
   mode: InputMode
@@ -135,10 +140,12 @@ const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) =
 }
 
 export const runCalibration = async (overlay: Overlay, opts: Opts): Promise<Calibration> => {
-  const hint =
-    opts.mode === 'gaze'
-      ? 'Keep your head still and follow the dot with your eyes only.'
-      : 'Turn your head to point your nose at the dot. Your eyes can rest.'
+  const hints: Record<InputMode, string> = {
+    gaze: 'Keep your head still and follow the dot with your eyes only.',
+    head: 'Turn your head to point your nose at the dot. Your eyes can rest.',
+    both: 'Look at the dot the natural way: turn your head a little and let your eyes do the rest.',
+  }
+  const hint = hints[opts.mode]
   const s = mount(overlay, hint)
   const dots: CalibrationSample[] = []
   const pursuit: CalibrationSample[] = []
