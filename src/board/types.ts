@@ -7,11 +7,17 @@ export type BoardAction =
   | { kind: 'speak' }
   | { kind: 'go'; board: string }
   | { kind: 'prediction'; index: number }
+  | { kind: 'recalibrate' }
+  | { kind: 'settings' }
+  | { kind: 'savePhrase' }
   | { kind: 'none' }
+
+// one-frame request for the ui to act on, cleared by the next action
+export type BoardRequest = 'speak' | 'recalibrate' | 'settings' | 'savePhrase'
 
 export type Zone = { id: string; label: string; action: BoardAction; inert?: boolean }
 export type Board = { id: string; zones: Zone[] }
 export type BoardSet = Record<string, Board>
-export type BoardState = { text: string; boardId: string; speakRequested: boolean }
+export type BoardState = { text: string; boardId: string; request: BoardRequest | null }
 export type ZoneCount = 9 | 6
 export type Rect = { x: number; y: number; w: number; h: number }

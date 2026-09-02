@@ -384,3 +384,85 @@
   font-size: clamp(2.4rem, 8vw, 6rem) !important;
   overflow-wrap: anywhere;
 }
+
+/* selection confirmation: a quick pulse on the zone and the text, transform and color only */
+@keyframes zone-confirm {
+  0% {
+    box-shadow: inset 0 0 0 4px var(--accent);
+    background-color: var(--accent);
+    color: var(--bg);
+  }
+  100% {
+    background-color: var(--zone);
+    color: var(--zone-ink);
+  }
+}
+.zone[data-selected] {
+  animation: zone-confirm 320ms ease-out;
+}
+@keyframes text-confirm {
+  0% {
+    color: var(--accent);
+    transform: translateY(2px);
+  }
+  100% {
+    color: var(--ink);
+    transform: none;
+  }
+}
+.strip-text[data-added] {
+  animation: text-confirm 280ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zone[data-selected],
+  .strip-text[data-added] {
+    animation: none;
+  }
+}
+
+/* calibration dot carries a countdown ring for the collection window */
+.cal-dot svg {
+  position: absolute;
+  inset: -14px;
+  width: calc(100% + 28px);
+  height: calc(100% + 28px);
+  transform: rotate(-90deg);
+}
+.cal-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-dasharray: 276.46;
+  stroke-dashoffset: 276.46;
+}
+.cal-count {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  margin-left: 0.6em;
+}
+
+/* start screen and settings: stacked descriptive choices */
+.choices.stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+.card-choice {
+  align-items: flex-start !important;
+  padding: 0.9rem 1rem !important;
+  max-width: 44rem;
+}
+.card-choice input {
+  margin-top: 0.35rem;
+}
+.field textarea {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--zone);
+  color: var(--ink);
+  resize: vertical;
+  width: 100%;
+  max-width: 32rem;
+}

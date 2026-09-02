@@ -1,10 +1,11 @@
 export type FitKind = 'quadratic' | 'linear'
 
-export const designRow = (u: number, v: number, kind: FitKind): number[] =>
-  kind === 'quadratic' ? [1, u, v, u * v, u * u, v * v] : [1, u, v]
+// extra terms (head yaw and pitch in gaze mode) enter linearly after the polynomial terms
+export const designRow = (u: number, v: number, kind: FitKind, extra: number[] = []): number[] =>
+  kind === 'quadratic' ? [1, u, v, u * v, u * u, v * v, ...extra] : [1, u, v, ...extra]
 
 // normal equations (A^T A) c = A^T y, then gaussian elimination with partial pivoting.
-// systems here are 3x3 or 6x6 so this is plenty
+// systems here are at most 8x8 so this is plenty
 export const solveLeastSquares = (rows: number[][], ys: number[]): number[] => {
   const n = rows[0]?.length ?? 0
   const ata = Array.from({ length: n }, () => new Array<number>(n).fill(0))

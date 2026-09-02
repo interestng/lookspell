@@ -2,18 +2,21 @@ import './theme.css'
 import './app.css'
 import {
   apply,
-  boardSetFor,
-  hitTest,
+  buildBoards,
   initialState,
+  phraseSlots,
   resolveZones,
+  stickyHit,
   zoneCountFor,
+  type BoardRequest,
+  type BoardSet,
   type Rect,
   type Zone,
 } from '../board'
 import {
   applyCalibration,
-  isPoor,
   parseCalibration,
+  quality,
   serializeCalibration,
   storageKey,
   type Calibration,
@@ -28,21 +31,19 @@ import type { InputMode, Point, PointerState, TrackingSample } from '../types'
 import { createOverlay } from './overlay'
 import { createPointerLayer } from './pointer-layer'
 import { createBoardScreen } from './screens/board'
-import { featuresOf, runCalibration } from './screens/calibration'
-import {
-  showCameraError,
-  showLargeText,
-  showModelError,
-  showPermission,
-} from './screens/permission'
+import { featuresOf, runCalibration, showCalibrationResult } from './screens/calibration'
+import { showCameraError, showLargeText, showModelError } from './screens/permission'
 import { showSettings } from './screens/settings'
+import { showStart } from './screens/start'
 import { downloadJson, showStudyForm, showStudySummary, type StudyInit } from './screens/study'
-import { loadSettings, saveSettings, type Settings } from './settings-store'
+import { loadSettings, saveSettings, SMOOTHING_CUTOFF, type Settings } from './settings-store'
 import { createStatus } from './status'
 
 const FACE_LOST_MS = 1000
 const LOW_LIGHT_LUMA = 40
 const RESIZE_INVALIDATE = 0.1
+const STICKY_MARGIN = 0.15
+const LIGHT_CHECK_EVERY = 60
 
 const byId = (id: string) => {
   const el = document.getElementById(id)
@@ -51,10 +52,11 @@ const byId = (id: string) => {
 }
 
 const screenSize = () => ({ w: window.innerWidth, h: window.innerHeight })
+const isDev = import.meta.env.DEV
 
 let settings: Settings = loadSettings(localStorage)
 const zoneCount = settings.zoneOverride ?? zoneCountFor(window.innerWidth, window.innerHeight)
-const boards = boardSetFor(zoneCount)
+let boards: BoardSet = buildBoards(zoneCount, settings.phrases)
 
 const root = byId('app')
 const overlay = createOverlay(byId('overlay'))
@@ -67,7 +69,16 @@ const dwell = createDwellMachine({ dwellMs: settings.dwellMs })
 const blink = createBlinkDetector()
 const guard = createLeaveGuard()
 
-let pointer = createPointer(screenSize())
+const makePointer = () =>
+  settings.inputMode === 'gaze'
+    ? createPointer(screenSize(), {
+        minCutoff: SMOOTHING_CUTOFF[settings.smoothing],
+        beta: 0.002,
+        median: true,
+      })
+    : createPointer(screenSize())
+
+let pointer = makePointer()
 let calibratedFor = screenSize()
 let boardState = initialState()
 let predictor = createPredictor([])
@@ -89,50 +100,76 @@ loadWords(`${import.meta.env.BASE_URL}words.txt`)
   .catch(() => undefined)
 speaker.onStateChange((on) => screen.setSpeaking(on))
 
+const loadStoredCalibration = (mode: InputMode): Calibration | null => {
+  const raw = localStorage.getItem(storageKey(mode, screenSize()))
+  return raw ? parseCalibration(raw) : null
+}
+
 const applySettings = (next: Settings) => {
   const reload = next.zoneOverride !== settings.zoneOverride
   const modeChanged = next.inputMode !== settings.inputMode
+  const smoothingChanged = next.smoothing !== settings.smoothing
   settings = next
   saveSettings(localStorage, settings)
   dwell.setConfig({ dwellMs: settings.dwellMs })
   speaker.setVoice(settings.voice)
   preview.hidden = !settings.showPreview
   preview.toggleAttribute('data-mirror', settings.mirror)
+  boards = buildBoards(zoneCount, settings.phrases)
+  if (!boards[boardState.boardId]) boardState = { ...boardState, boardId: 'home' }
   if (modeChanged) calibration = loadStoredCalibration(settings.inputMode)
+  if (modeChanged || smoothingChanged) pointer = makePointer()
   if (reload) location.reload()
 }
 
-const loadStoredCalibration = (mode: InputMode): Calibration | null => {
-  const raw = localStorage.getItem(storageKey(mode, screenSize()))
-  return raw ? parseCalibration(raw) : null
+const useCalibration = (cal: Calibration, size: { w: number; h: number }) => {
+  calibration = cal
+  calibratedFor = size
+  pointer = makePointer()
+  localStorage.setItem(storageKey(settings.inputMode, size), serializeCalibration(cal))
 }
 
+// runs the dots (and pursuit) phase, then a result screen the user answers by looking.
+// while the result screen is up, calibrating is false so the overlay dwell path drives it
 const calibrate = async () => {
   if (calibrating) return
   calibrating = true
   pointerLayer.hide()
   const size = screenSize()
-  const cal = await runCalibration(overlay.el, {
+  const cal = await runCalibration(overlay, {
     mode: settings.inputMode,
+    full: settings.calibration === 'full',
     screen: size,
     samples: () => latest,
   })
   calibrating = false
   guard.blockNext()
-  // no usable samples (face never seen) would map everything to one corner, so keep none
-  if (!Number.isFinite(cal.rmsPx)) return
-  calibration = cal
-  calibratedFor = size
-  pointer = createPointer(size)
-  localStorage.setItem(storageKey(settings.inputMode, size), serializeCalibration(calibration))
+  if (!Number.isFinite(cal.rmsPx)) {
+    showCalibrationResult(
+      overlay,
+      null,
+      () => overlay.hide(),
+      () => overlay.hide(),
+    )
+    return
+  }
+  showCalibrationResult(
+    overlay,
+    cal,
+    () => {
+      useCalibration(cal, size)
+      overlay.hide()
+    },
+    () => overlay.hide(),
+  )
 }
 
 window.addEventListener('resize', () => {
   const s = screenSize()
-  const grew =
+  const moved =
     Math.abs(s.w - calibratedFor.w) / calibratedFor.w > RESIZE_INVALIDATE ||
     Math.abs(s.h - calibratedFor.h) / calibratedFor.h > RESIZE_INVALIDATE
-  if (grew) calibration = null
+  if (moved) calibration = null
 })
 
 const start = async () => {
@@ -154,6 +191,7 @@ const start = async () => {
 const openSettings = () => {
   showSettings(overlay, {
     settings,
+    zoneCount,
     voices: speaker.voices(),
     onChange: applySettings,
     onClose: () => overlay.hide(),
@@ -174,7 +212,14 @@ const openSettings = () => {
 const startStudy = async (init: StudyInit) => {
   overlay.hide()
   applySettings({ ...settings, inputMode: init.mode, confirmMode: init.confirm })
-  await calibrate()
+  if (!mouseMode) {
+    calibration = null
+    // wait until a calibration has been accepted on the result screen
+    await new Promise<void>((resolve) => {
+      const check = () => (calibration && !overlay.visible() ? resolve() : setTimeout(check, 200))
+      check()
+    })
+  }
   study = createStudySession({
     tester: init.tester,
     mode: init.mode,
@@ -211,12 +256,31 @@ const speakNow = () => {
   else showLargeText(overlay, boardState.text, 3000)
 }
 
-const onZoneSelected = (zone: Zone, predictions: string[]) => {
+const savePhrase = () => {
+  const phrase = boardState.text.trim()
+  if (!phrase || settings.phrases.length >= phraseSlots(zoneCount)) return
+  if (settings.phrases.some((p) => p.toLowerCase() === phrase.toLowerCase())) return
+  applySettings({ ...settings, phrases: [...settings.phrases, phrase] })
+  screen.textAdded()
+}
+
+const handleRequest = (req: BoardRequest) => {
+  if (req === 'speak') {
+    speakNow()
+    if (study) endStudyPhrase()
+  }
+  if (req === 'recalibrate') calibration = null
+  if (req === 'settings') openSettings()
+  if (req === 'savePhrase') savePhrase()
+}
+
+const onZoneSelected = (zone: Zone, index: number, predictions: string[]) => {
+  const before = boardState.text
   boardState = apply(boardState, zone.action, predictions)
   study?.recordSelect(zone.id, boardState.boardId, zone.action.kind, boardState.text)
-  if (!boardState.speakRequested) return
-  speakNow()
-  if (study) endStudyPhrase()
+  screen.flash(index)
+  if (boardState.text !== before) screen.textAdded()
+  if (boardState.request) handleRequest(boardState.request)
 }
 
 const updateFace = (s: TrackingSample | null, t: number) => {
@@ -237,7 +301,7 @@ const updateFace = (s: TrackingSample | null, t: number) => {
   return false
 }
 
-// mean luma of a 32x32 downsample of the camera frame, every 60 frames
+// mean luma of a 32x32 downsample of the camera frame
 const lumaCanvas = document.createElement('canvas')
 lumaCanvas.width = 32
 lumaCanvas.height = 32
@@ -259,15 +323,13 @@ const overlayRects = (els: HTMLElement[]): Rect[] =>
     return { x: r.left, y: r.top, w: r.width, h: r.height }
   })
 
-// dwell over .gz elements inside an overlay, so settings and study screens work without hands
+// dwell over .gz elements inside an overlay, so settings and result screens work without hands
 const driveOverlay = (p: PointerState, confirm: boolean, t: number) => {
   const els = overlay.targets()
-  const zones = els.map((el, i) => ({
-    id: `ov-${i}`,
-    label: '',
-    action: { kind: 'none' as const },
-  }))
-  const hit = p.confident ? hitTest(overlayRects(els), zones, p) : null
+  const zones = els.map((_, i) => ({ id: `ov-${i}`, label: '', action: { kind: 'none' as const } }))
+  const hit = p.confident
+    ? stickyHit(overlayRects(els), zones, p, dwell.status().zone, STICKY_MARGIN)
+    : null
   const slot = guard.filter(hit === null ? null : Number(hit.slice(3)))
   const zoneId = slot === null ? null : `ov-${slot}`
   const ev = dwell.update({
@@ -290,9 +352,38 @@ const driveOverlay = (p: PointerState, confirm: boolean, t: number) => {
   }
 }
 
+const driveBoard = (p: PointerState, confirm: boolean, t: number) => {
+  const board = boards[boardState.boardId] ?? boards.home
+  if (!board) return
+  const predictions = predictor.suggest(currentPrefix(boardState.text))
+  const zones = resolveZones(board, predictions)
+  const hit = p.confident
+    ? stickyHit(screen.rects(), zones, p, dwell.status().zone, STICKY_MARGIN)
+    : null
+  const slot = guard.filter(hit === null ? null : zones.findIndex((z) => z.id === hit))
+  const zoneId = slot === null ? null : (zones[slot]?.id ?? null)
+  const ev = dwell.update({
+    zone: zoneId,
+    confident: p.confident,
+    confirm,
+    t,
+    mode: settings.confirmMode,
+  })
+  if (ev) {
+    const i = zones.findIndex((z) => z.id === ev.zone)
+    const zone = zones[i]
+    if (zone) {
+      guard.selected(i)
+      onZoneSelected(zone, i, predictions)
+    }
+  }
+  const st = dwell.status()
+  screen.render(zones, boardState.text, predictions, st.zone, st.progress)
+}
+
 const frame = (t: number) => {
   frameCount += 1
-  if (frameCount % 60 === 0) checkLight()
+  if (frameCount % LIGHT_CHECK_EVERY === 0) checkLight()
   const s = latest
   const faceOk = updateFace(s, t)
   const lostLong = !faceOk && faceLostSince !== null && t - faceLostSince > FACE_LOST_MS
@@ -316,7 +407,7 @@ const frame = (t: number) => {
 
   status.set({
     face: tracker ? (faceOk ? 'found' : 'lost') : 'loading',
-    calibration: calibration ? (isPoor(calibration) ? 'poor' : 'ok') : 'none',
+    calibration: calibration ? quality(calibration) : 'none',
     mode: settings.inputMode,
     hint: mouseMode ? 'mouse' : lowLight ? 'low light' : undefined,
   })
@@ -332,56 +423,42 @@ const frame = (t: number) => {
   if (overlay.visible()) {
     overlayWasVisible = true
     driveOverlay(p, confirm, t)
-    requestAnimationFrame(frame)
-    return
-  }
-  if (overlayWasVisible) {
-    overlayWasVisible = false
-    guard.blockNext()
-  }
-
-  const board = boards[boardState.boardId] ?? boards.home
-  if (!board) return
-  const predictions = predictor.suggest(currentPrefix(boardState.text))
-  const zones = resolveZones(board, predictions)
-  const hit = p.confident ? hitTest(screen.rects(), zones, p) : null
-  const slot = guard.filter(hit === null ? null : zones.findIndex((z) => z.id === hit))
-  const zoneId = slot === null ? null : (zones[slot]?.id ?? null)
-  const ev = dwell.update({
-    zone: zoneId,
-    confident: p.confident,
-    confirm,
-    t,
-    mode: settings.confirmMode,
-  })
-  if (ev) {
-    const i = zones.findIndex((z) => z.id === ev.zone)
-    const zone = zones[i]
-    if (zone) {
-      guard.selected(i)
-      onZoneSelected(zone, predictions)
+  } else {
+    if (overlayWasVisible) {
+      overlayWasVisible = false
+      guard.blockNext()
     }
+    driveBoard(p, confirm, t)
   }
-  const st = dwell.status()
-  screen.render(zones, boardState.text, predictions, st.zone, st.progress)
   requestAnimationFrame(frame)
 }
 
 window.addEventListener('mousemove', (e) => (mouse = { x: e.clientX, y: e.clientY }))
 window.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return
+  const inField =
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLSelectElement ||
+    e.target instanceof HTMLTextAreaElement
+  if (inField) return
   if (e.key === 'c') calibration = null
   if (e.key === 's') {
     if (overlay.visible()) overlay.hide()
     else openSettings()
   }
-  if (e.key === 'm' && import.meta.env.DEV) mouseMode = !mouseMode
+  if (e.key === 'm' && isDev) mouseMode = !mouseMode
 })
 
-if (new URLSearchParams(location.search).get('mouse') === '1' && import.meta.env.DEV) {
-  mouseMode = true
-  applySettings(settings)
-  requestAnimationFrame(frame)
-} else {
-  showPermission(overlay, start)
+const boot = () => {
+  if (new URLSearchParams(location.search).get('mouse') === '1' && isDev) {
+    mouseMode = true
+    applySettings(settings)
+    requestAnimationFrame(frame)
+    return
+  }
+  showStart(overlay, settings, (choice) => {
+    applySettings({ ...settings, ...choice, seenStart: true })
+    void start()
+  })
 }
+
+boot()

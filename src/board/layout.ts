@@ -20,12 +20,33 @@ export const zoneRects = (n: ZoneCount, area: Rect, gap: number): Rect[] => {
   }))
 }
 
+const inside = (r: Rect, p: Point, m = 0) =>
+  p.x >= r.x - m && p.x < r.x + r.w + m && p.y >= r.y - m && p.y < r.y + r.h + m
+
 export const hitTest = (rects: Rect[], zones: Zone[], p: Point): string | null => {
   for (let i = 0; i < rects.length; i++) {
     const r = rects[i]
     const zone = zones[i]
     if (!r || !zone || zone.inert) continue
-    if (p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h) return zone.id
+    if (inside(r, p)) return zone.id
   }
   return null
+}
+
+// hysteresis: the hovered zone keeps the pointer until it is clearly outside, by margin times the
+// zone's shorter side, so jitter on a border does not restart the dwell
+export const stickyHit = (
+  rects: Rect[],
+  zones: Zone[],
+  p: Point,
+  current: string | null,
+  margin: number,
+): string | null => {
+  if (current !== null) {
+    const i = zones.findIndex((z) => z.id === current)
+    const r = rects[i]
+    const z = zones[i]
+    if (r && z && !z.inert && inside(r, p, margin * Math.min(r.w, r.h))) return current
+  }
+  return hitTest(rects, zones, p)
 }

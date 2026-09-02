@@ -62,3 +62,58 @@ describe('fitCalibration', () => {
     expect(storageKey('gaze', screen)).toBe('cal:gaze:1000x600')
   })
 })
+
+describe('head terms and outliers', () => {
+  it('uses extra head features when present', async () => {
+    const { fitCalibration: fit, applyCalibration: applyC } = await import('./index')
+    // screen x depends on iris u and on head yaw a, y on v and pitch b
+    const samples = calibrationTargets(screen).flatMap((target) =>
+      Array.from({ length: 12 }, (_, i) => {
+        const a = ((i % 4) - 1.5) * 0.1
+        const b = ((i % 3) - 1) * 0.1
+        return {
+          features: { u: target.x / screen.w - a, v: target.y / screen.h - b, a, b },
+          target,
+        }
+      }),
+    )
+    const cal = fit(samples, screen)
+    expect(cal.rmsPx).toBeLessThan(1)
+    const p = applyC(cal, { u: 0.5 - 0.1, v: 0.5, a: 0.1, b: 0 })
+    expect(p.x).toBeCloseTo(500, 2)
+  })
+  it('trimOutliers drops samples far from the target median', async () => {
+    const { trimOutliers } = await import('./index')
+    const good = synthetic()
+    const bad = { features: { u: 5, v: 5 }, target: good[0]!.target }
+    const trimmed = trimOutliers([...good, bad])
+    expect(trimmed).toHaveLength(good.length)
+    expect(trimmed).not.toContain(bad)
+  })
+  it('trimOutliers keeps everything when samples agree', async () => {
+    const { trimOutliers } = await import('./index')
+    const good = synthetic()
+    expect(trimOutliers(good)).toHaveLength(good.length)
+  })
+})
+
+describe('fitRobust', () => {
+  it('refits without samples whose residual is far above the rest', async () => {
+    const { fitRobust, fitCalibration: fit } = await import('./index')
+    const good = synthetic(0.01)
+    // pursuit-style samples have unique targets, so per-target trimming cannot catch these
+    const bad = Array.from({ length: 6 }, (_, i) => ({
+      features: { u: 0.9, v: 0.9 },
+      target: { x: 50 + i, y: 50 + i },
+    }))
+    const naive = fit([...good, ...bad], screen)
+    const robust = fitRobust([...good, ...bad], screen)
+    expect(robust.rmsPx).toBeLessThan(naive.rmsPx / 2)
+    expect(robust.samples).toBe(good.length)
+  })
+  it('returns the plain fit when nothing stands out', async () => {
+    const { fitRobust, fitCalibration: fit } = await import('./index')
+    const s = synthetic(0.01)
+    expect(fitRobust(s, screen).samples).toBe(fit(s, screen).samples)
+  })
+})

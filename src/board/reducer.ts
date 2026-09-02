@@ -1,6 +1,6 @@
 import type { Board, BoardAction, BoardState, Zone } from './types'
 
-export const initialState = (): BoardState => ({ text: '', boardId: 'home', speakRequested: false })
+export const initialState = (): BoardState => ({ text: '', boardId: 'home', request: null })
 
 const currentWordStart = (text: string) => text.lastIndexOf(' ') + 1
 
@@ -9,7 +9,7 @@ export const apply = (
   action: BoardAction,
   predictions: string[],
 ): BoardState => {
-  const s = { ...state, speakRequested: false }
+  const s: BoardState = { ...state, request: null }
   switch (action.kind) {
     case 'append': {
       // a letter came from a group board, bounce back so the next letter is two hops again
@@ -27,7 +27,13 @@ export const apply = (
     case 'clear':
       return { ...s, text: '' }
     case 'speak':
-      return { ...s, speakRequested: true }
+      return { ...s, request: 'speak' }
+    case 'recalibrate':
+      return { ...s, request: 'recalibrate' }
+    case 'settings':
+      return { ...s, request: 'settings' }
+    case 'savePhrase':
+      return { ...s, request: 'savePhrase' }
     case 'go':
       return { ...s, boardId: action.board }
     case 'prediction': {

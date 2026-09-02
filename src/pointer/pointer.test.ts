@@ -29,3 +29,32 @@ describe('createPointer', () => {
     expect(s.x).toBe(1000)
   })
 })
+
+describe('createMedian', () => {
+  it('returns the median of the last n values', async () => {
+    const { createMedian } = await import('./median')
+    const m = createMedian(5)
+    expect(m.push(10)).toBe(10)
+    expect(m.push(100)).toBe(55)
+    expect(m.push(12)).toBe(12)
+    expect(m.push(11)).toBe(11.5)
+    expect(m.push(13)).toBe(12)
+    // the spike at 100 falls out of the window
+    expect(m.push(12)).toBe(12)
+  })
+})
+
+describe('createPointer smoothing options', () => {
+  it('a lower cutoff damps jitter more than the default', () => {
+    const jitter = (opts?: { minCutoff: number }) => {
+      const p = createPointer(screen, opts)
+      const xs: number[] = []
+      for (let i = 0; i < 300; i++) {
+        const last = p.update({ x: 500 + (i % 2 ? 20 : -20), y: 300 }, i * 16)
+        if (i > 100) xs.push(last.x)
+      }
+      return Math.max(...xs) - Math.min(...xs)
+    }
+    expect(jitter({ minCutoff: 0.3 })).toBeLessThan(jitter())
+  })
+})

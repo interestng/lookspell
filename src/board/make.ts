@@ -32,6 +32,15 @@ export const space = (): Zone => z('Space', { kind: 'space' })
 export const speak = (): Zone => z('Speak', { kind: 'speak' })
 export const board = (id: string, zones: Zone[]): Board => ({ id, zones })
 
+// a phrase slot takes the next custom phrase, or goes inert when the list runs out
+export const phraseFiller = (phrases: string[]) => {
+  let i = 0
+  return (): Zone => {
+    const p = phrases[i++]
+    return p && p.trim() ? say(p.trim()) : inert()
+  }
+}
+
 export const letterGroups = (groups: string[], perBoard: number, tail: () => Zone[]): Board[] =>
   groups.map((g) => {
     const zones = [...g].map(letter)

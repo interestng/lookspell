@@ -1,11 +1,21 @@
 import type { Point, PointerState } from '../types'
+import { createMedian } from './median'
 import { createOneEuro } from './one-euro'
 
-const OFFSCREEN_TOLERANCE = 0.25
+export { createMedian } from './median'
 
-export const createPointer = (screen: { w: number; h: number }) => {
-  const fx = createOneEuro()
-  const fy = createOneEuro()
+const OFFSCREEN_TOLERANCE = 0.25
+const MEDIAN_WINDOW = 5
+
+export type PointerOpts = { minCutoff?: number; beta?: number; median?: boolean }
+
+export const createPointer = (screen: { w: number; h: number }, opts: PointerOpts = {}) => {
+  const euro = { minCutoff: opts.minCutoff, beta: opts.beta }
+  const fx = createOneEuro(euro)
+  const fy = createOneEuro(euro)
+  const mx = createMedian(MEDIAN_WINDOW)
+  const my = createMedian(MEDIAN_WINDOW)
+  const useMedian = opts.median ?? false
   let last: Point = { x: screen.w / 2, y: screen.h / 2 }
 
   const clamp = (p: Point): Point => ({
@@ -22,13 +32,16 @@ export const createPointer = (screen: { w: number; h: number }) => {
   return {
     update(raw: Point | null, t: number): PointerState {
       if (!raw) return { ...last, confident: false }
-      const smoothed = { x: fx.filter(raw.x, t), y: fy.filter(raw.y, t) }
+      const pre = useMedian ? { x: mx.push(raw.x), y: my.push(raw.y) } : raw
+      const smoothed = { x: fx.filter(pre.x, t), y: fy.filter(pre.y, t) }
       last = clamp(smoothed)
       return { ...last, confident: !wayOff(smoothed) }
     },
     reset() {
       fx.reset()
       fy.reset()
+      mx.reset()
+      my.reset()
     },
   }
 }

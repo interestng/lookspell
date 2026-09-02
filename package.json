@@ -1,5 +1,5 @@
 {
-  "name": "gaze-communicator",
+  "name": "lookspell",
   "version": "0.1.0",
   "scripts": {
     "dev": "vite --host",
@@ -11,7 +11,7 @@
     "format": "prettier --write ."
   },
   "license": "MIT",
-  "description": "browser gaze and head-pointing communicator",
+  "description": "speak by looking: a webcam communication board, proof of concept",
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1"
   },

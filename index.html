@@ -9,7 +9,7 @@
       name="description"
       content="A communication board for people who can only move their eyes, running in a browser on any device with a front camera."
     />
-    <title>gaze-communicator</title>
+    <title>Lookspell</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -20,11 +20,12 @@
   </head>
   <body>
     <header class="masthead">
-      <span class="wordmark">gaze‑communicator</span>
+      <span class="wordmark">Lookspell</span>
       <nav class="masthead-nav">
         <a href="#how">How it works</a>
         <a href="#results">Pilot</a>
         <a href="#limits">Limits</a>
+        <a href="#related">Related work</a>
         <a href="#source">Source</a>
       </nav>
     </header>
@@ -61,6 +62,10 @@
           thing: where they look. Commercial eye trackers turn that into speech, but they are priced
           as medical equipment and rationed like it. This project asks how much of that capability a
           laptop's front camera can recover, and measures the answer honestly.
+        </p>
+        <p class="poc">
+          Lookspell is a proof of concept. It is not a medical device and is not a replacement for a
+          clinical eye-gaze system.
         </p>
       </section>
 
@@ -120,8 +125,8 @@
               <g transform="translate(424 40)">
                 <rect width="170" height="110" rx="6" />
                 <text x="16" y="34" class="node-title">Calibration</text>
-                <text x="16" y="62" class="node-sub">9 dots, 14 seconds</text>
-                <text x="16" y="84" class="node-sub">quadratic fit</text>
+                <text x="16" y="62" class="node-sub">9 dots, then a sweep</text>
+                <text x="16" y="84" class="node-sub">robust quadratic fit</text>
               </g>
               <g transform="translate(626 40)">
                 <rect width="170" height="110" rx="6" />
@@ -206,12 +211,86 @@
           </li>
         </ol>
       </section>
+      <section class="related" id="related">
+        <div class="section-head">
+          <span class="section-num">05</span>
+          <h2>Related work</h2>
+        </div>
+        <p>
+          Camera-based communication is not a new idea. These are the closest existing tools, and
+          what this one does differently.
+        </p>
+        <dl class="related-list">
+          <div>
+            <dt>
+              <a
+                href="https://blog.google/company-news/outreach-and-initiatives/accessibility/look-to-speak/"
+                >Look to Speak</a
+              >, Google, 2020
+            </dt>
+            <dd>
+              Android app. Look left or right to narrow a list of preset phrases. Phrases only, no
+              spelling, no head mode, closed source.
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <a href="https://doi.org/10.1145/3025453.3025790">GazeSpeak</a>, Microsoft Research,
+              2017
+            </dt>
+            <dd>
+              A partner holds a phone facing the speaker; four eye directions pick letter groups.
+              Released as SwipeSpeak. Needs a second person and works by gestures, not pointing.
+            </dd>
+          </div>
+          <div>
+            <dt><a href="https://github.com/revolutionarybukhari/ocula">OCULA</a></dt>
+            <dd>
+              Single-page browser demo with MediaPipe iris tracking, dwell and a six-tile board.
+              Iris only, no head compensation, no prediction, no speech, no measurement.
+            </dd>
+          </div>
+          <div>
+            <dt><a href="https://www.vocable.app/">Vocable</a>, WillowTree</dt>
+            <dd>
+              Open-source phone AAC using ARKit or ARCore head tracking with dwell. Head only,
+              native app, needs a depth camera.
+            </dd>
+          </div>
+          <div>
+            <dt><a href="https://github.com/OptiKey/OptiKey">OptiKey</a></dt>
+            <dd>
+              The most complete free eye-gaze keyboard. Windows, designed for dedicated Tobii-class
+              trackers. With real hardware it will be faster than anything a webcam can do.
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <a href="https://github.com/google/project-gameface">Project Gameface</a>,
+              <a href="http://www.cameramouse.org/">Camera Mouse</a>,
+              <a href="https://github.com/cmauri/eviacam">eViacam</a>
+            </dt>
+            <dd>Webcam head-tracking mouse emulators. Pointing only, no board, no speech.</dd>
+          </div>
+          <div>
+            <dt>
+              <a href="https://github.com/AceCentre/EyeCommander">EyeCommander</a>, Ace Centre
+            </dt>
+            <dd>Blink detection as a switch for other AAC software. No pointing of its own.</dd>
+          </div>
+        </dl>
+        <p>
+          What none of them combine: a plain browser page with no install, eye and head pointing in
+          the same tool, dwell and blink selection, free spelling with prediction and speech, and a
+          built-in way to measure words per minute.
+        </p>
+      </section>
     </main>
 
     <footer class="colophon" id="source">
       <p>
-        Built by a high‑school student as a biomedical engineering project, 2026.
-        <a href="https://github.com/interestng/gaze-communicator">Source on GitHub</a>, MIT licence.
+        Lookspell was built by a high school student as a biomedical engineering project, 2026.
+        <a href="https://github.com/interestng/lookspell">Source on GitHub</a>, MIT licence.
       </p>
       <p class="fine">
         Set in Fraunces and IBM Plex Sans. Face tracking by MediaPipe. No analytics on this page.

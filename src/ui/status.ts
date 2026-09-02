@@ -2,7 +2,7 @@ import type { InputMode } from '../types'
 
 export type StatusState = {
   face: 'found' | 'lost' | 'loading'
-  calibration: 'ok' | 'poor' | 'none'
+  calibration: 'good' | 'ok' | 'poor' | 'none'
   mode: InputMode
   hint?: string
 }

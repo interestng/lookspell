@@ -31,3 +31,15 @@ describe('settings store', () => {
     expect(loadSettings(s).dwellMs).toBe(600)
   })
 })
+
+describe('settings additions', () => {
+  it('defaults phrases and smoothing, drops blank phrases on load', () => {
+    const s = mem()
+    expect(loadSettings(s).smoothing).toBe('medium')
+    expect(loadSettings(s).phrases.length).toBeGreaterThan(4)
+    s.setItem('settings', JSON.stringify({ phrases: ['Yes', '  ', 'Coffee'], smoothing: 'nope' }))
+    const loaded = loadSettings(s)
+    expect(loaded.phrases).toEqual(['Yes', 'Coffee'])
+    expect(loaded.smoothing).toBe('medium')
+  })
+})

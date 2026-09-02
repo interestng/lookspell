@@ -73,6 +73,19 @@ export const createBoardScreen = (root: HTMLElement, zoneCount: ZoneCount) => {
     setSpeaking(on: boolean) {
       textEl.toggleAttribute('data-speaking', on)
     },
+    // brief confirmation on the chosen zone, re-triggered by removing and re-adding the attribute
+    flash(index: number) {
+      const b = buttons[index]
+      if (!b) return
+      b.removeAttribute('data-selected')
+      void b.offsetWidth
+      b.setAttribute('data-selected', '')
+    },
+    textAdded() {
+      textEl.removeAttribute('data-added')
+      void textEl.offsetWidth
+      textEl.setAttribute('data-added', '')
+    },
     setTargetPhrase(target: string | null) {
       targetEl.textContent = target ?? ''
       targetEl.hidden = target === null

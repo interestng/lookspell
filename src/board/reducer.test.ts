@@ -34,14 +34,29 @@ describe('board reducer', () => {
     const s = { ...initialState(), text: 'i wa' }
     expect(apply(s, { kind: 'prediction', index: 5 }, preds)).toEqual(s)
   })
-  it('go changes board, speak sets flag, clear empties', () => {
+  it('go changes board, speak requests speech, clear empties and drops the request', () => {
     let s = apply(initialState(), { kind: 'go', board: 'spell' }, preds)
     expect(s.boardId).toBe('spell')
     s = apply({ ...s, text: 'hi' }, { kind: 'speak' }, preds)
-    expect(s.speakRequested).toBe(true)
+    expect(s.request).toBe('speak')
     s = apply(s, { kind: 'clear' }, preds)
     expect(s.text).toBe('')
-    expect(s.speakRequested).toBe(false)
+    expect(s.request).toBeNull()
+  })
+  it('recalibrate, settings and savePhrase are requests that leave text alone', () => {
+    const base = { ...initialState(), text: 'hi' }
+    expect(apply(base, { kind: 'recalibrate' }, preds)).toMatchObject({
+      text: 'hi',
+      request: 'recalibrate',
+    })
+    expect(apply(base, { kind: 'settings' }, preds)).toMatchObject({
+      text: 'hi',
+      request: 'settings',
+    })
+    expect(apply(base, { kind: 'savePhrase' }, preds)).toMatchObject({
+      text: 'hi',
+      request: 'savePhrase',
+    })
   })
   it('append from a letter group returns to spell board', () => {
     let s = apply(initialState(), { kind: 'go', board: 'group-abcd' }, preds)
