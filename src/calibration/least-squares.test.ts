@@ -35,3 +35,20 @@ describe('solveLeastSquares', () => {
     expect(c.every(Number.isFinite)).toBe(true)
   })
 })
+
+describe('ridge', () => {
+  it('returns a finite, sane solution when two columns are identical', () => {
+    const rows: number[][] = []
+    const ys: number[] = []
+    for (let u = 0; u <= 1; u += 0.1) {
+      rows.push([1, u, u])
+      ys.push(3 + 2 * u)
+    }
+    const plain = solveLeastSquares(rows, ys)
+    const ridged = solveLeastSquares(rows, ys, 0.01)
+    expect(plain.every((c) => c === 0)).toBe(true)
+    expect(ridged.every(Number.isFinite)).toBe(true)
+    const at = (c: number[], u: number) => (c[0] ?? 0) + (c[1] ?? 0) * u + (c[2] ?? 0) * u
+    expect(at(ridged, 0.5)).toBeCloseTo(4, 1)
+  })
+})

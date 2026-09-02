@@ -4,11 +4,15 @@ export type FitKind = 'quadratic' | 'linear'
 export const designRow = (u: number, v: number, kind: FitKind, extra: number[] = []): number[] =>
   kind === 'quadratic' ? [1, u, v, u * v, u * u, v * v, ...extra] : [1, u, v, ...extra]
 
-// normal equations (A^T A) c = A^T y, then gaussian elimination with partial pivoting.
-// systems here are at most 8x8 so this is plenty
-export const solveLeastSquares = (rows: number[][], ys: number[]): number[] => {
+// normal equations (A^T A + ridge I) c = A^T y, then gaussian elimination with partial pivoting.
+// ridge is not applied to the intercept column. systems here are at most 10x10 so this is plenty
+export const solveLeastSquares = (rows: number[][], ys: number[], ridge = 0): number[] => {
   const n = rows[0]?.length ?? 0
-  const ata = Array.from({ length: n }, () => new Array<number>(n).fill(0))
+  const ata = Array.from({ length: n }, (_, i) => {
+    const row = new Array<number>(n).fill(0)
+    if (i > 0) row[i] = ridge
+    return row
+  })
   const aty = new Array<number>(n).fill(0)
   rows.forEach((r, k) => {
     const y = ys[k] ?? 0

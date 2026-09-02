@@ -7,7 +7,7 @@ export { createMedian } from './median'
 const OFFSCREEN_TOLERANCE = 0.25
 const MEDIAN_WINDOW = 5
 
-export type PointerOpts = { minCutoff?: number; beta?: number; median?: boolean }
+export type PointerOpts = { minCutoff?: number; beta?: number; median?: boolean; deadband?: number }
 
 export const createPointer = (screen: { w: number; h: number }, opts: PointerOpts = {}) => {
   const euro = { minCutoff: opts.minCutoff, beta: opts.beta }
@@ -16,6 +16,8 @@ export const createPointer = (screen: { w: number; h: number }, opts: PointerOpt
   const mx = createMedian(MEDIAN_WINDOW)
   const my = createMedian(MEDIAN_WINDOW)
   const useMedian = opts.median ?? false
+  // the pointer does not move at all for changes smaller than this, so a fixating eye is still
+  const deadband = opts.deadband ?? 0
   let last: Point = { x: screen.w / 2, y: screen.h / 2 }
 
   const clamp = (p: Point): Point => ({
@@ -34,7 +36,8 @@ export const createPointer = (screen: { w: number; h: number }, opts: PointerOpt
       if (!raw) return { ...last, confident: false }
       const pre = useMedian ? { x: mx.push(raw.x), y: my.push(raw.y) } : raw
       const smoothed = { x: fx.filter(pre.x, t), y: fy.filter(pre.y, t) }
-      last = clamp(smoothed)
+      const next = clamp(smoothed)
+      if (Math.hypot(next.x - last.x, next.y - last.y) >= deadband) last = next
       return { ...last, confident: !wayOff(smoothed) }
     },
     reset() {

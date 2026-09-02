@@ -38,10 +38,10 @@ describe('fitCalibration', () => {
   it('maps features back to targets with a clean signal', () => {
     const cal = fitCalibration(synthetic(), screen)
     expect(cal.model.kind).toBe('quadratic')
-    expect(cal.rmsPx).toBeLessThan(1)
+    expect(cal.rmsPx).toBeLessThan(3)
     const p = applyCalibration(cal, { u: 0.5, v: 0.5 })
-    expect(p.x).toBeCloseTo(500, 3)
-    expect(p.y).toBeCloseTo(300, 3)
+    expect(Math.abs(p.x - 500)).toBeLessThan(3)
+    expect(Math.abs(p.y - 300)).toBeLessThan(3)
   })
   it('falls back to linear with fewer than 6 targets', () => {
     const few = synthetic().filter((s) => s.target.y === 60)
@@ -78,9 +78,9 @@ describe('head terms and outliers', () => {
       }),
     )
     const cal = fit(samples, screen)
-    expect(cal.rmsPx).toBeLessThan(1)
+    expect(cal.rmsPx).toBeLessThan(3)
     const p = applyC(cal, { u: 0.5 - 0.1, v: 0.5, a: 0.1, b: 0 })
-    expect(p.x).toBeCloseTo(500, 2)
+    expect(Math.abs(p.x - 500)).toBeLessThan(5)
   })
   it('trimOutliers drops samples far from the target median', async () => {
     const { trimOutliers } = await import('./index')
@@ -130,8 +130,8 @@ describe('validate and settle', () => {
       { features: { u: 0.7, v: 0.7 }, target: { x: 700, y: 420 } },
     ]
     const v = validate(cal, held)
-    expect(v.meanPx).toBeLessThan(1)
-    expect(v.fraction).toBeLessThan(0.001)
+    expect(v.meanPx).toBeLessThan(3)
+    expect(v.fraction).toBeLessThan(0.003)
     expect(q({ ...cal, validationFraction: 0.2 })).toBe('poor')
     expect(q({ ...cal, validationFraction: 0.03 })).toBe('good')
   })
@@ -142,5 +142,34 @@ describe('validate and settle', () => {
     expect(isSettled(quiet, 6, 0.01)).toBe(true)
     expect(isSettled(noisy, 6, 0.01)).toBe(false)
     expect(isSettled(quiet.slice(0, 3), 6, 0.01)).toBe(false)
+  })
+})
+
+describe('robustness against bad inputs', () => {
+  it('clamps features to the calibrated range so extrapolation cannot fly off', async () => {
+    const { fitCalibration: fit, applyCalibration: applyC } = await import('./index')
+    const cal = fit(synthetic(0.01), screen)
+    const p = applyC(cal, { u: 5, v: -3 })
+    expect(p.x).toBeGreaterThan(-screen.w * 0.3)
+    expect(p.x).toBeLessThan(screen.w * 1.3)
+    expect(p.y).toBeGreaterThan(-screen.h * 0.3)
+    expect(p.y).toBeLessThan(screen.h * 1.3)
+  })
+  it('a fit with collinear extra terms still points where it should', async () => {
+    const { fitCalibration: fit, applyCalibration: applyC, isDegenerate } = await import('./index')
+    // head terms identical to the iris terms, as when the head never moved during calibration
+    const samples = synthetic(0.01).map((s) => ({
+      ...s,
+      features: { ...s.features, a: s.features.u, b: s.features.v },
+    }))
+    const cal = fit(samples, screen)
+    expect(isDegenerate(cal)).toBe(false)
+    const p = applyC(cal, { u: 0.5, v: 0.5, a: 0.5, b: 0.5 })
+    expect(Math.abs(p.x - 500)).toBeLessThan(10)
+    expect(Math.abs(p.y - 300)).toBeLessThan(10)
+  })
+  it('flags an empty or all-zero fit as degenerate', async () => {
+    const { fitCalibration: fit, isDegenerate } = await import('./index')
+    expect(isDegenerate(fit([], screen))).toBe(true)
   })
 })

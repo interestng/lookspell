@@ -40,6 +40,9 @@ import { loadSettings, saveSettings, SMOOTHING_CUTOFF, type Settings } from './s
 import { createStatus } from './status'
 
 const FACE_LOST_MS = 1000
+// eyes closed: hold the pointer where it was rather than follow the collapsing lid signal
+const BLINK_SCORE = 0.35
+const BLINK_HOLD_MS = 500
 const LOW_LIGHT_LUMA = 40
 const RESIZE_INVALIDATE = 0.1
 const STICKY_MARGIN = 0.15
@@ -70,10 +73,17 @@ const blink = createBlinkDetector()
 const guard = createLeaveGuard()
 
 const makePointer = () => {
-  if (settings.inputMode === 'head') return createPointer(screenSize())
+  const size = screenSize()
+  const diagonal = Math.hypot(size.w, size.h)
+  if (settings.inputMode === 'head') return createPointer(size, { deadband: diagonal * 0.003 })
   // the iris term brings its noise along in both and gaze modes, combined mode needs less damping
   const cutoff = SMOOTHING_CUTOFF[settings.smoothing] * (settings.inputMode === 'both' ? 1.6 : 1)
-  return createPointer(screenSize(), { minCutoff: cutoff, beta: 0.002, median: true })
+  return createPointer(size, {
+    minCutoff: cutoff,
+    beta: 0.002,
+    median: true,
+    deadband: diagonal * 0.006,
+  })
 }
 
 let pointer = makePointer()
@@ -92,6 +102,8 @@ let study: StudySession | null = null
 let mouseMode = false
 let mouse: Point = { x: -1, y: -1 }
 let frameCount = 0
+let blinkSince: number | null = null
+let lastPointer: PointerState | null = null
 let overlayWasVisible = false
 let lowLight = false
 
@@ -403,10 +415,17 @@ const frame = (t: number) => {
     p = { ...mouse, confident: mouse.x >= 0 }
   } else {
     const active = calibration ?? pendingCalibration
-    const raw =
-      s && faceOk && active ? applyCalibration(active, featuresOf(s, settings.inputMode)) : null
-    p = pointer.update(raw, t)
-    if (lostLong) p = { ...p, confident: false }
+    const blinking = !!s && faceOk && (s.blink.left > BLINK_SCORE || s.blink.right > BLINK_SCORE)
+    blinkSince = blinking ? (blinkSince ?? t) : null
+    if (blinking && blinkSince !== null && lastPointer && settings.inputMode !== 'head') {
+      p = { ...lastPointer, confident: t - blinkSince <= BLINK_HOLD_MS }
+    } else {
+      const raw =
+        s && faceOk && active ? applyCalibration(active, featuresOf(s, settings.inputMode)) : null
+      p = pointer.update(raw, t)
+      if (lostLong) p = { ...p, confident: false }
+      lastPointer = p
+    }
   }
   const confirm = s ? blink.update(s.blink, t) : false
 

@@ -55,6 +55,9 @@ describe('extractFeatures', () => {
     const sb = extractFeatures({ landmarks: b, blendshapes: undefined, matrix: undefined, t: 0 })
     expect(sb.gaze.y).toBeCloseTo(sa.gaze.y)
     expect(sb.gaze.open).toBeGreaterThan(sa.gaze.open)
+    expect(sb.gaze.lid).toBeGreaterThan(sa.gaze.lid)
+    // lid 0.05 above the corner line over eye width 0.1
+    expect(sa.gaze.lid).toBeCloseTo(0.5)
   })
   it('reads blink scores', () => {
     const s = extractFeatures({

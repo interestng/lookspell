@@ -1,6 +1,7 @@
 import {
   calibrationTargets,
   fitRobust,
+  isDegenerate,
   isSettled,
   missFraction,
   quality,
@@ -49,12 +50,32 @@ const lerp = (a: number, b: number, f: number) => a + (b - a) * f
 // ease in and out so the dot does not jerk at the ends of a sweep
 const ease = (f: number) => (1 - Math.cos(Math.PI * f)) / 2
 
+const BLINK_SCORE = 0.35
+
+// a frame is usable for calibration when a face is seen and neither eye is mid-blink
+export const usable = (s: TrackingSample | null): s is TrackingSample =>
+  !!s?.faceFound && s.blink.left < BLINK_SCORE && s.blink.right < BLINK_SCORE
+
 export const featuresOf = (s: TrackingSample, mode: InputMode): Features => {
   if (mode === 'gaze') {
-    return { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch, c: s.gaze.open }
+    return {
+      u: s.gaze.x,
+      v: s.gaze.y,
+      a: s.head.yaw,
+      b: s.head.pitch,
+      c: s.gaze.open,
+      d: s.gaze.lid,
+    }
   }
   if (mode === 'both') {
-    return { u: s.head.yaw, v: s.head.pitch, a: s.gaze.x, b: s.gaze.y, c: s.gaze.open }
+    return {
+      u: s.head.yaw,
+      v: s.head.pitch,
+      a: s.gaze.x,
+      b: s.gaze.y,
+      c: s.gaze.open,
+      d: s.gaze.lid,
+    }
   }
   return { u: s.head.yaw, v: s.head.pitch }
 }
@@ -111,7 +132,7 @@ const waitSettled = async (opts: Opts) => {
   await new Promise<void>((done) => {
     const tick = () => {
       const s = opts.samples()
-      if (s?.faceFound) recent.push(featuresOf(s, opts.mode))
+      if (usable(s)) recent.push(featuresOf(s, opts.mode))
       const timedOut = performance.now() - start > SETTLE_TIMEOUT_MS
       if (isSettled(recent, SETTLE_FRAMES, SETTLE_SPREAD) || timedOut) done()
       else requestAnimationFrame(tick)
@@ -128,7 +149,7 @@ const collectAt = async (s: Stage, opts: Opts, target: Point, out: CalibrationSa
   await new Promise<void>((done) => {
     const tick = () => {
       const sample = opts.samples()
-      if (sample?.faceFound) out.push({ features: featuresOf(sample, opts.mode), target })
+      if (usable(sample)) out.push({ features: featuresOf(sample, opts.mode), target })
       const frac = Math.min((performance.now() - start) / COLLECT_MS, 1)
       setRing(s, frac)
       if (frac < 1) requestAnimationFrame(tick)
@@ -173,7 +194,7 @@ const collectPursuit = async (s: Stage, opts: Opts, out: CalibrationSample[]) =>
         trail.push({ t: now, p })
         const lagged = trail.find((t) => t.t >= now - PURSUIT_LAG_MS)
         const sample = opts.samples()
-        if (sample?.faceFound && lagged && now - start > PURSUIT_LAG_MS) {
+        if (usable(sample) && lagged && now - start > PURSUIT_LAG_MS) {
           out.push({ features: featuresOf(sample, opts.mode), target: lagged.p })
         }
         if (frac < 1) requestAnimationFrame(tick)
@@ -205,7 +226,7 @@ export const runCalibration = async (overlay: Overlay, opts: Opts): Promise<Cali
   }
 
   let cal = fit()
-  if (!Number.isFinite(cal.rmsPx)) {
+  if (isDegenerate(cal)) {
     overlay.hide()
     return cal
   }

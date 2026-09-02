@@ -4,10 +4,21 @@ import { designRow, solveLeastSquares, type FitKind } from './least-squares'
 // u, v come from the iris (gaze mode) or the head (head mode). a, b are head yaw and pitch and c is
 // eyelid openness, present only in gaze mode: head terms cancel small head movements and the lid
 // term carries most of the vertical gaze signal
-export type Features = { u: number; v: number; a?: number; b?: number; c?: number }
+export type Features = { u: number; v: number; a?: number; b?: number; c?: number; d?: number }
 export type Screen = { w: number; h: number }
 export type CalibrationSample = { features: Features; target: Point }
-export type CalibrationModel = { kind: FitKind; extras: number; cx: number[]; cy: number[] }
+// mu and sigma standardise each design column (intercept excluded) so ridge treats them equally.
+// lo and hi clamp raw features to the calibrated range so the polynomial never extrapolates far
+export type CalibrationModel = {
+  kind: FitKind
+  extras: number
+  mu: number[]
+  sigma: number[]
+  lo: number[]
+  hi: number[]
+  cx: number[]
+  cy: number[]
+}
 export type Calibration = {
   model: CalibrationModel
   rmsPx: number
@@ -23,6 +34,9 @@ export const TARGET_INSET = 0.1
 export const GOOD_DIAGONAL_FRACTION = 0.05
 export const POOR_DIAGONAL_FRACTION = 0.12
 const MIN_TARGETS_FOR_QUADRATIC = 6
+// ridge strength per sample on standardised columns, small enough not to bias a clean fit
+const RIDGE_PER_SAMPLE = 1e-3
+const CLAMP_MARGIN = 0.1
 const OUTLIER_K = 3
 const OUTLIER_FLOOR = 0.02
 
@@ -61,32 +75,74 @@ export const trimOutliers = (samples: CalibrationSample[], k = OUTLIER_K): Calib
   return keep
 }
 
-const extraOf = (f: Features, extras: number) => [f.a ?? 0, f.b ?? 0, f.c ?? 0].slice(0, extras)
+const extraOf = (f: Features, extras: number) =>
+  [f.a ?? 0, f.b ?? 0, f.c ?? 0, f.d ?? 0].slice(0, extras)
 
-const extrasIn = (f: Features) => (f.a === undefined ? 0 : f.c === undefined ? 2 : 3)
+const extrasIn = (f: Features) =>
+  f.a === undefined ? 0 : f.c === undefined ? 2 : f.d === undefined ? 3 : 4
+
+const rawOf = (f: Features, extras: number) => [f.u, f.v, ...extraOf(f, extras)]
+
+const clampFeatures = (f: Features, m: CalibrationModel): Features => {
+  const raw = rawOf(f, m.extras).map((x, i) => {
+    const lo = m.lo[i]
+    const hi = m.hi[i]
+    if (lo === undefined || hi === undefined) return x
+    const pad = (hi - lo) * CLAMP_MARGIN
+    return Math.min(Math.max(x, lo - pad), hi + pad)
+  })
+  const [u = f.u, v = f.v, a, b, c, d] = raw
+  return { u, v, a, b, c, d }
+}
+
+const standardise = (row: number[], m: CalibrationModel) =>
+  row.map((x, i) => (i === 0 ? x : (x - (m.mu[i] ?? 0)) / (m.sigma[i] || 1)))
 
 const evaluate = (model: CalibrationModel, f: Features): Point => {
-  const row = designRow(f.u, f.v, model.kind, extraOf(f, model.extras))
+  const g = clampFeatures(f, model)
+  const row = standardise(designRow(g.u, g.v, model.kind, extraOf(g, model.extras)), model)
   const dot = (c: number[]) => row.reduce((s, x, i) => s + x * (c[i] ?? 0), 0)
   return { x: dot(model.cx), y: dot(model.cy) }
+}
+
+const columnStats = (rows: number[][]) => {
+  const n = rows[0]?.length ?? 0
+  const mu = Array.from(
+    { length: n },
+    (_, i) => rows.reduce((s, r) => s + (r[i] ?? 0), 0) / rows.length,
+  )
+  const sigma = Array.from({ length: n }, (_, i) =>
+    Math.sqrt(rows.reduce((s, r) => s + ((r[i] ?? 0) - (mu[i] ?? 0)) ** 2, 0) / rows.length),
+  )
+  return { mu, sigma }
 }
 
 export const fitCalibration = (samples: CalibrationSample[], screen: Screen): Calibration => {
   const targets = new Set(samples.map((s) => targetKey(s.target))).size
   const kind: FitKind = targets >= MIN_TARGETS_FOR_QUADRATIC ? 'quadratic' : 'linear'
   const extras = samples.length ? Math.min(...samples.map((s) => extrasIn(s.features))) : 0
-  const rows = samples.map((s) =>
+  const raws = samples.map((s) => rawOf(s.features, extras))
+  const width = raws[0]?.length ?? 0
+  const lo = Array.from({ length: width }, (_, i) => Math.min(...raws.map((r) => r[i] ?? 0)))
+  const hi = Array.from({ length: width }, (_, i) => Math.max(...raws.map((r) => r[i] ?? 0)))
+  const plainRows = samples.map((s) =>
     designRow(s.features.u, s.features.v, kind, extraOf(s.features, extras)),
   )
+  const { mu, sigma } = columnStats(plainRows)
+  const base: CalibrationModel = { kind, extras, mu, sigma, lo, hi, cx: [], cy: [] }
+  const rows = plainRows.map((r) => standardise(r, base))
+  const ridge = RIDGE_PER_SAMPLE * samples.length
   const cx = solveLeastSquares(
     rows,
     samples.map((s) => s.target.x),
+    ridge,
   )
   const cy = solveLeastSquares(
     rows,
     samples.map((s) => s.target.y),
+    ridge,
   )
-  const model = { kind, extras, cx, cy }
+  const model = { ...base, cx, cy }
   const sq = samples.reduce((acc, s) => {
     const p = evaluate(model, s.features)
     return acc + (p.x - s.target.x) ** 2 + (p.y - s.target.y) ** 2
@@ -97,6 +153,13 @@ export const fitCalibration = (samples: CalibrationSample[], screen: Screen): Ca
 }
 
 export const applyCalibration = (cal: Calibration, f: Features): Point => evaluate(cal.model, f)
+
+// no samples, a singular solve (all zeros) or a non-finite residual: nothing usable came out
+export const isDegenerate = (cal: Calibration): boolean =>
+  cal.samples === 0 ||
+  !Number.isFinite(cal.rmsPx) ||
+  cal.model.cx.every((c) => c === 0) ||
+  cal.model.cy.every((c) => c === 0)
 
 const ROBUST_K = 2.5
 const ROBUST_MIN_KEEP = 0.5
@@ -154,7 +217,7 @@ export const parseCalibration = (raw: string): Calibration | null => {
   try {
     const v = JSON.parse(raw) as Partial<Calibration>
     if (!v.model || !v.screen || typeof v.rmsPx !== 'number') return null
-    if (typeof v.model.extras !== 'number') return null
+    if (typeof v.model.extras !== 'number' || !Array.isArray(v.model.mu)) return null
     return v as Calibration
   } catch {
     return null

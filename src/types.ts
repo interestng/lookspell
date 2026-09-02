@@ -1,6 +1,7 @@
-// x, y: iris centre relative to the eye corners, 0..1 across the eye. open: eyelid gap over eye width,
-// which tracks vertical gaze far better than iris position alone
-export type GazeFeatures = { x: number; y: number; open: number }
+// x, y: iris centre relative to the eye corners, 0..1 across the eye. open: eyelid gap over eye width.
+// lid: upper lid height above the corner line over eye width. both lid terms track vertical gaze
+// far better than iris position alone
+export type GazeFeatures = { x: number; y: number; open: number; lid: number }
 export type HeadFeatures = { yaw: number; pitch: number }
 export type BlinkFeatures = { left: number; right: number }
 

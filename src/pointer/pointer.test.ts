@@ -44,6 +44,18 @@ describe('createMedian', () => {
   })
 })
 
+describe('deadband', () => {
+  it('ignores movements smaller than the dead band and follows larger ones', () => {
+    const p = createPointer(screen, { deadband: 10 })
+    for (let i = 0; i < 40; i++) p.update({ x: 500, y: 300 }, i * 16)
+    const still = p.update({ x: 504, y: 303 }, 700)
+    expect(still.x).toBe(500)
+    let moved = still
+    for (let i = 0; i < 60; i++) moved = p.update({ x: 700, y: 300 }, 800 + i * 16)
+    expect(moved.x).toBeGreaterThan(650)
+  })
+})
+
 describe('createPointer smoothing options', () => {
   it('a lower cutoff damps jitter more than the default', () => {
     const jitter = (opts?: { minCutoff: number }) => {

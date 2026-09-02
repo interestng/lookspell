@@ -18,7 +18,7 @@ export const EYE = {
 const NO_FACE: TrackingSample = {
   t: 0,
   faceFound: false,
-  gaze: { x: 0.5, y: 0.5, open: 0 },
+  gaze: { x: 0.5, y: 0.5, open: 0, lid: 0 },
   head: { yaw: 0, pitch: 0 },
   blink: { left: 0, right: 0 },
 }
@@ -43,10 +43,14 @@ const eyeFeature = (lm: Landmark[], eye: typeof EYE.right, iris: number[]) => {
   // unit vectors along the corner line and perpendicular to it (perpendicular points down in image space)
   const ux = ax / w
   const uy = ay / w
+  const tx = top.x - mx
+  const ty = top.y - my
   return {
     x: (cx * ux + cy * uy) / w + 0.5,
     y: (-cx * uy + cy * ux) / w + 0.5,
     open: Math.hypot(bottom.x - top.x, bottom.y - top.y) / w,
+    // positive when the upper lid sits above the corner line (image y grows downward)
+    lid: (tx * uy - ty * ux) / w,
   }
 }
 
@@ -81,6 +85,7 @@ export const extractFeatures = ({
       x: both.reduce((s, e) => s + e.x, 0) / both.length,
       y: both.reduce((s, e) => s + e.y, 0) / both.length,
       open: both.reduce((s, e) => s + e.open, 0) / both.length,
+      lid: both.reduce((s, e) => s + e.lid, 0) / both.length,
     },
     head: headPose(matrix),
     blink: { left: score('eyeBlinkLeft'), right: score('eyeBlinkRight') },
