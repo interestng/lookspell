@@ -25,7 +25,8 @@ export const startTracking = async (
   video: HTMLVideoElement,
   onSample: (s: TrackingSample) => void,
 ): Promise<Tracker> => {
-  const size = isPhone() ? { width: 480, height: 360 } : { width: 640, height: 480 }
+  // more pixels on the iris helps vertical gaze most, phones stay small for frame rate
+  const size = isPhone() ? { width: 640, height: 480 } : { width: 1280, height: 720 }
   const stream = await stage('camera', startCamera(video, size))
   const landmarker = await stage(
     'model',

@@ -24,10 +24,10 @@ const lerp = (a: number, b: number, f: number) => a + (b - a) * f
 // ease in and out so the dot does not jerk at the ends of a sweep
 const ease = (f: number) => (1 - Math.cos(Math.PI * f)) / 2
 
-// gaze mode adds head yaw and pitch so the fit can cancel small head movements
+// gaze mode adds head yaw and pitch (cancels small head movements) and eyelid openness (vertical cue)
 export const featuresOf = (s: TrackingSample, mode: InputMode): Features =>
   mode === 'gaze'
-    ? { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch }
+    ? { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch, c: s.gaze.open }
     : { u: s.head.yaw, v: s.head.pitch }
 
 type Opts = {
@@ -90,28 +90,35 @@ const collectDots = async (s: Screen, opts: Opts, out: CalibrationSample[]) => {
   }
 }
 
-// phase two: the dot glides along three horizontal sweeps covering the screen, sampling the
-// whole way, which gives the fit dense coverage between the nine dots
+// phase two: the dot glides along three horizontal sweeps and one vertical sweep, sampling the
+// whole way, which gives the fit dense coverage between the nine dots on both axes
 const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) => {
   const { w, h } = opts.screen
   const x0 = w * SWEEP_INSET
   const x1 = w * (1 - SWEEP_INSET)
   const rows = [SWEEP_INSET, 0.5, 1 - SWEEP_INSET].map((f) => f * h)
-  const sweeps = rows.map((y, i) =>
-    i % 2 === 0 ? { y, from: x0, to: x1 } : { y, from: x1, to: x0 },
+  const sweeps: { from: Point; to: Point }[] = rows.map((y, i) =>
+    i % 2 === 0
+      ? { from: { x: x0, y }, to: { x: x1, y } }
+      : { from: { x: x1, y }, to: { x: x0, y } },
   )
+  sweeps.push({
+    from: { x: w / 2, y: h * (1 - SWEEP_INSET) },
+    to: { x: w / 2, y: h * SWEEP_INSET },
+  })
   const trail: { t: number; p: Point }[] = []
   s.ring.style.strokeDashoffset = String(RING_CIRC)
   for (const [i, sweep] of sweeps.entries()) {
     s.count.textContent = `sweep ${i + 1} of ${sweeps.length}`
-    place(s, { x: sweep.from, y: sweep.y })
+    place(s, sweep.from)
     await wait(SETTLE_MS)
     const start = performance.now()
     await new Promise<void>((done) => {
       const tick = () => {
         const now = performance.now()
         const frac = Math.min((now - start) / SWEEP_MS, 1)
-        const p = { x: lerp(sweep.from, sweep.to, ease(frac)), y: sweep.y }
+        const e = ease(frac)
+        const p = { x: lerp(sweep.from.x, sweep.to.x, e), y: lerp(sweep.from.y, sweep.to.y, e) }
         place(s, p)
         trail.push({ t: now, p })
         const lagged = trail.find((e) => e.t >= now - PURSUIT_LAG_MS)

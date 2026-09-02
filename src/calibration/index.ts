@@ -1,12 +1,13 @@
 import type { InputMode, Point } from '../types'
 import { designRow, solveLeastSquares, type FitKind } from './least-squares'
 
-// u, v come from the iris (gaze mode) or the head (head mode). a, b are head yaw and pitch,
-// present only in gaze mode so small head movements do not drag the mapping
-export type Features = { u: number; v: number; a?: number; b?: number }
+// u, v come from the iris (gaze mode) or the head (head mode). a, b are head yaw and pitch and c is
+// eyelid openness, present only in gaze mode: head terms cancel small head movements and the lid
+// term carries most of the vertical gaze signal
+export type Features = { u: number; v: number; a?: number; b?: number; c?: number }
 export type Screen = { w: number; h: number }
 export type CalibrationSample = { features: Features; target: Point }
-export type CalibrationModel = { kind: FitKind; withHead: boolean; cx: number[]; cy: number[] }
+export type CalibrationModel = { kind: FitKind; extras: number; cx: number[]; cy: number[] }
 export type Calibration = {
   model: CalibrationModel
   rmsPx: number
@@ -58,10 +59,12 @@ export const trimOutliers = (samples: CalibrationSample[], k = OUTLIER_K): Calib
   return keep
 }
 
-const extraOf = (f: Features, withHead: boolean) => (withHead ? [f.a ?? 0, f.b ?? 0] : [])
+const extraOf = (f: Features, extras: number) => [f.a ?? 0, f.b ?? 0, f.c ?? 0].slice(0, extras)
+
+const extrasIn = (f: Features) => (f.a === undefined ? 0 : f.c === undefined ? 2 : 3)
 
 const evaluate = (model: CalibrationModel, f: Features): Point => {
-  const row = designRow(f.u, f.v, model.kind, extraOf(f, model.withHead))
+  const row = designRow(f.u, f.v, model.kind, extraOf(f, model.extras))
   const dot = (c: number[]) => row.reduce((s, x, i) => s + x * (c[i] ?? 0), 0)
   return { x: dot(model.cx), y: dot(model.cy) }
 }
@@ -69,9 +72,9 @@ const evaluate = (model: CalibrationModel, f: Features): Point => {
 export const fitCalibration = (samples: CalibrationSample[], screen: Screen): Calibration => {
   const targets = new Set(samples.map((s) => targetKey(s.target))).size
   const kind: FitKind = targets >= MIN_TARGETS_FOR_QUADRATIC ? 'quadratic' : 'linear'
-  const withHead = samples.length > 0 && samples.every((s) => s.features.a !== undefined)
+  const extras = samples.length ? Math.min(...samples.map((s) => extrasIn(s.features))) : 0
   const rows = samples.map((s) =>
-    designRow(s.features.u, s.features.v, kind, extraOf(s.features, withHead)),
+    designRow(s.features.u, s.features.v, kind, extraOf(s.features, extras)),
   )
   const cx = solveLeastSquares(
     rows,
@@ -81,7 +84,7 @@ export const fitCalibration = (samples: CalibrationSample[], screen: Screen): Ca
     rows,
     samples.map((s) => s.target.y),
   )
-  const model = { kind, withHead, cx, cy }
+  const model = { kind, extras, cx, cy }
   const sq = samples.reduce((acc, s) => {
     const p = evaluate(model, s.features)
     return acc + (p.x - s.target.x) ** 2 + (p.y - s.target.y) ** 2
@@ -124,7 +127,7 @@ export const parseCalibration = (raw: string): Calibration | null => {
   try {
     const v = JSON.parse(raw) as Partial<Calibration>
     if (!v.model || !v.screen || typeof v.rmsPx !== 'number') return null
-    if (typeof v.model.withHead !== 'boolean') return null
+    if (typeof v.model.extras !== 'number') return null
     return v as Calibration
   } catch {
     return null

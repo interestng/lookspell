@@ -42,6 +42,19 @@ describe('extractFeatures', () => {
     expect(s.faceFound).toBe(true)
     expect(s.gaze.x).toBeCloseTo(0.25)
     expect(s.gaze.y).toBeCloseTo(0.75)
+    // lid gap 0.1 over eye width 0.1
+    expect(s.gaze.open).toBeCloseTo(1)
+  })
+  it('vertical feature does not depend on where the lids are', () => {
+    const a = withEyes(0.5, 0.5)
+    const b = withEyes(0.5, 0.5)
+    // move only the upper lids, as if the eye opened wider
+    b[EYE.right.top] = { ...b[EYE.right.top]!, y: 0.4 }
+    b[EYE.left.top] = { ...b[EYE.left.top]!, y: 0.4 }
+    const sa = extractFeatures({ landmarks: a, blendshapes: undefined, matrix: undefined, t: 0 })
+    const sb = extractFeatures({ landmarks: b, blendshapes: undefined, matrix: undefined, t: 0 })
+    expect(sb.gaze.y).toBeCloseTo(sa.gaze.y)
+    expect(sb.gaze.open).toBeGreaterThan(sa.gaze.open)
   })
   it('reads blink scores', () => {
     const s = extractFeatures({
