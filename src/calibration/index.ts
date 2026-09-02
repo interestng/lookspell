@@ -13,6 +13,8 @@ export type Calibration = {
   rmsPx: number
   diagonalFraction: number
   samples: number
+  // mean miss on held-out targets over the screen diagonal, the honest accuracy number
+  validationFraction?: number
   screen: Screen
 }
 export type Quality = 'good' | 'ok' | 'poor'
@@ -112,12 +114,37 @@ export const fitRobust = (samples: CalibrationSample[], screen: Screen): Calibra
   return fitCalibration(keep, screen)
 }
 
-export const quality = (cal: Calibration): Quality =>
-  cal.diagonalFraction <= GOOD_DIAGONAL_FRACTION
-    ? 'good'
-    : cal.diagonalFraction <= POOR_DIAGONAL_FRACTION
-      ? 'ok'
-      : 'poor'
+export const missFraction = (cal: Calibration): number =>
+  cal.validationFraction ?? cal.diagonalFraction
+
+export const quality = (cal: Calibration): Quality => {
+  const f = missFraction(cal)
+  return f <= GOOD_DIAGONAL_FRACTION ? 'good' : f <= POOR_DIAGONAL_FRACTION ? 'ok' : 'poor'
+}
+
+// predicted point per held-out target is the median over its frames, so one blink does not count
+export const validate = (cal: Calibration, held: CalibrationSample[]) => {
+  const groups = new Map<string, CalibrationSample[]>()
+  for (const s of held)
+    groups.set(targetKey(s.target), [...(groups.get(targetKey(s.target)) ?? []), s])
+  const misses = [...groups.values()].map((g) => {
+    const preds = g.map((s) => evaluate(cal.model, s.features))
+    const px = median(preds.map((p) => p.x))
+    const py = median(preds.map((p) => p.y))
+    const t = g[0]?.target ?? { x: 0, y: 0 }
+    return Math.hypot(px - t.x, py - t.y)
+  })
+  const meanPx = misses.length ? misses.reduce((a, b) => a + b, 0) / misses.length : Infinity
+  return { meanPx, fraction: meanPx / Math.hypot(cal.screen.w, cal.screen.h) }
+}
+
+// the last n features all lie within spread of each other on both axes
+export const isSettled = (recent: Features[], n: number, spread: number): boolean => {
+  if (recent.length < n) return false
+  const w = recent.slice(-n)
+  const range = (xs: number[]) => Math.max(...xs) - Math.min(...xs)
+  return range(w.map((f) => f.u)) <= spread && range(w.map((f) => f.v)) <= spread
+}
 
 export const isPoor = (cal: Calibration): boolean => quality(cal) === 'poor'
 

@@ -117,3 +117,30 @@ describe('fitRobust', () => {
     expect(fitRobust(s, screen).samples).toBe(fit(s, screen).samples)
   })
 })
+
+describe('validate and settle', () => {
+  it('validate measures the mean miss on held-out targets and quality uses it', async () => {
+    const { fitCalibration: fit, validate, quality: q } = await import('./index')
+    const cal = fit(synthetic(), screen)
+    const held = [
+      { features: { u: 0.3, v: 0.3 }, target: { x: 300, y: 180 } },
+      { features: { u: 0.3, v: 0.3 }, target: { x: 300, y: 180 } },
+      // one bad frame at this target, the per-target median ignores it
+      { features: { u: 0.9, v: 0.9 }, target: { x: 300, y: 180 } },
+      { features: { u: 0.7, v: 0.7 }, target: { x: 700, y: 420 } },
+    ]
+    const v = validate(cal, held)
+    expect(v.meanPx).toBeLessThan(1)
+    expect(v.fraction).toBeLessThan(0.001)
+    expect(q({ ...cal, validationFraction: 0.2 })).toBe('poor')
+    expect(q({ ...cal, validationFraction: 0.03 })).toBe('good')
+  })
+  it('isSettled needs a quiet window of features', async () => {
+    const { isSettled } = await import('./index')
+    const quiet = Array.from({ length: 8 }, (_, i) => ({ u: 0.5 + (i % 2) * 0.002, v: 0.4 }))
+    const noisy = [...quiet, { u: 0.6, v: 0.4 }]
+    expect(isSettled(quiet, 6, 0.01)).toBe(true)
+    expect(isSettled(noisy, 6, 0.01)).toBe(false)
+    expect(isSettled(quiet.slice(0, 3), 6, 0.01)).toBe(false)
+  })
+})

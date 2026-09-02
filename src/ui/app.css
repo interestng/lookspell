@@ -466,3 +466,30 @@
   width: 100%;
   max-width: 32rem;
 }
+
+/* instruction card between calibration phases, the only text on that screen */
+.cal-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 34rem;
+  padding: 0 24px;
+  text-align: center;
+}
+.cal-card h2 {
+  margin: 0 0 0.4em;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  line-height: 1.05;
+}
+.cal-card p {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--muted);
+}
+.cal-card[hidden],
+.cal-dot[hidden] {
+  display: none;
+}

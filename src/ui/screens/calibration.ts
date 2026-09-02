@@ -1,8 +1,12 @@
 import {
   calibrationTargets,
   fitRobust,
+  isSettled,
+  missFraction,
   quality,
   trimOutliers,
+  validate,
+  GOOD_DIAGONAL_FRACTION,
   type Calibration,
   type CalibrationSample,
   type Features,
@@ -10,21 +14,41 @@ import {
 import type { InputMode, Point, TrackingSample } from '../../types'
 import type { Overlay } from '../overlay'
 
-const SETTLE_MS = 700
-const COLLECT_MS = 1300
+const SETTLE_MS = 600
+const SETTLE_TIMEOUT_MS = 1600
+const SETTLE_FRAMES = 6
+const SETTLE_SPREAD = 0.015
+const COLLECT_MS = 1200
 const SWEEP_MS = 3200
 const SWEEP_INSET = 0.12
 // the eye reaches a moving dot a beat after the dot gets there, so a sample is paired with
 // where the dot was this long ago
 const PURSUIT_LAG_MS = 120
+const CARD_MS = 2600
+const MAX_CHECK_ROUNDS = 2
 const RING_CIRC = 2 * Math.PI * 44
+
+// held-out dots sit between the training dots so the check measures interpolation, not recall
+const CHECK_SETS: Point[][] = [
+  [
+    { x: 0.3, y: 0.3 },
+    { x: 0.7, y: 0.3 },
+    { x: 0.3, y: 0.7 },
+    { x: 0.7, y: 0.7 },
+  ],
+  [
+    { x: 0.5, y: 0.25 },
+    { x: 0.25, y: 0.5 },
+    { x: 0.75, y: 0.5 },
+    { x: 0.5, y: 0.75 },
+  ],
+]
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const lerp = (a: number, b: number, f: number) => a + (b - a) * f
 // ease in and out so the dot does not jerk at the ends of a sweep
 const ease = (f: number) => (1 - Math.cos(Math.PI * f)) / 2
 
-// gaze mode adds head yaw and pitch (cancels small head movements) and eyelid openness (vertical cue)
 export const featuresOf = (s: TrackingSample, mode: InputMode): Features => {
   if (mode === 'gaze') {
     return { u: s.gaze.x, v: s.gaze.y, a: s.head.yaw, b: s.head.pitch, c: s.gaze.open }
@@ -42,62 +66,84 @@ type Opts = {
   samples: () => TrackingSample | null
 }
 
-type Screen = {
-  hint: HTMLElement
-  count: HTMLElement
-  dot: HTMLElement
-  ring: SVGCircleElement
-}
+type Stage = { root: HTMLElement; card: HTMLElement; dot: HTMLElement; ring: SVGCircleElement }
 
-const mount = (overlay: Overlay, hint: string): Screen => {
-  const el = overlay.show(`
+// a bare stage: nothing on screen but the dot, so nothing competes with it for the eye
+const mount = (overlay: Overlay): Stage => {
+  const root = overlay.show(`
     <div class="cal" aria-live="polite">
-      <p class="cal-hint"><span id="cal-hint">${hint}</span> <span class="cal-count" id="cal-count"></span></p>
-      <div class="cal-dot" id="cal-dot"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="cal-ring" id="cal-ring" cx="50" cy="50" r="44"/></svg></div>
+      <div class="cal-card" id="cal-card" hidden><h2 id="cal-title"></h2><p id="cal-body"></p></div>
+      <div class="cal-dot" id="cal-dot" hidden><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="cal-ring" id="cal-ring" cx="50" cy="50" r="44"/></svg></div>
     </div>`)
-  const q = <T extends Element>(sel: string) => {
-    const n = el.querySelector<T>(sel)
-    if (!n) throw new Error(`calibration markup missing ${sel}`)
-    return n
-  }
-  return {
-    hint: q('#cal-hint'),
-    count: q('#cal-count'),
-    dot: q('#cal-dot'),
-    ring: q('#cal-ring'),
-  }
+  const card = root.querySelector<HTMLElement>('#cal-card')
+  const dot = root.querySelector<HTMLElement>('#cal-dot')
+  const ring = root.querySelector<SVGCircleElement>('#cal-ring')
+  if (!card || !dot || !ring) throw new Error('calibration markup missing')
+  return { root, card, dot, ring }
 }
 
-const place = (s: Screen, p: Point) => {
+const place = (s: Stage, p: Point) => {
   s.dot.style.transform = `translate(${p.x}px, ${p.y}px)`
 }
 
-// phase one: nine fixed dots, samples taken after the eye has settled
-const collectDots = async (s: Screen, opts: Opts, out: CalibrationSample[]) => {
-  const targets = calibrationTargets(opts.screen)
-  for (const [i, target] of targets.entries()) {
-    s.count.textContent = `${i + 1} of ${targets.length}`
-    place(s, target)
-    s.ring.style.strokeDashoffset = String(RING_CIRC)
-    await wait(SETTLE_MS)
-    const start = performance.now()
-    await new Promise<void>((done) => {
-      const tick = () => {
-        const sample = opts.samples()
-        if (sample?.faceFound) out.push({ features: featuresOf(sample, opts.mode), target })
-        const frac = Math.min((performance.now() - start) / COLLECT_MS, 1)
-        s.ring.style.strokeDashoffset = String(RING_CIRC * (1 - frac))
-        if (frac < 1) requestAnimationFrame(tick)
-        else done()
-      }
-      requestAnimationFrame(tick)
-    })
-  }
+const setRing = (s: Stage, frac: number) => {
+  s.ring.style.strokeDashoffset = String(RING_CIRC * (1 - frac))
 }
 
-// phase two: the dot glides along three horizontal sweeps and one vertical sweep, sampling the
-// whole way, which gives the fit dense coverage between the nine dots on both axes
-const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) => {
+// a short instruction card between phases, shown while the dot is hidden
+const showCard = async (s: Stage, title: string, body: string) => {
+  s.dot.hidden = true
+  const h = s.card.querySelector('#cal-title')
+  const p = s.card.querySelector('#cal-body')
+  if (h) h.textContent = title
+  if (p) p.textContent = body
+  s.card.hidden = false
+  await wait(CARD_MS)
+  s.card.hidden = true
+  s.dot.hidden = false
+}
+
+// hold the dot until the features stop moving (the eye has arrived) or a timeout passes
+const waitSettled = async (opts: Opts) => {
+  const start = performance.now()
+  const recent: Features[] = []
+  await wait(SETTLE_MS)
+  await new Promise<void>((done) => {
+    const tick = () => {
+      const s = opts.samples()
+      if (s?.faceFound) recent.push(featuresOf(s, opts.mode))
+      const timedOut = performance.now() - start > SETTLE_TIMEOUT_MS
+      if (isSettled(recent, SETTLE_FRAMES, SETTLE_SPREAD) || timedOut) done()
+      else requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+}
+
+const collectAt = async (s: Stage, opts: Opts, target: Point, out: CalibrationSample[]) => {
+  place(s, target)
+  setRing(s, 0)
+  await waitSettled(opts)
+  const start = performance.now()
+  await new Promise<void>((done) => {
+    const tick = () => {
+      const sample = opts.samples()
+      if (sample?.faceFound) out.push({ features: featuresOf(sample, opts.mode), target })
+      const frac = Math.min((performance.now() - start) / COLLECT_MS, 1)
+      setRing(s, frac)
+      if (frac < 1) requestAnimationFrame(tick)
+      else done()
+    }
+    requestAnimationFrame(tick)
+  })
+}
+
+const collectDots = async (s: Stage, opts: Opts, targets: Point[], out: CalibrationSample[]) => {
+  for (const target of targets) await collectAt(s, opts, target, out)
+}
+
+// three horizontal sweeps and one vertical, sampling the whole way for dense coverage on both axes
+const collectPursuit = async (s: Stage, opts: Opts, out: CalibrationSample[]) => {
   const { w, h } = opts.screen
   const x0 = w * SWEEP_INSET
   const x1 = w * (1 - SWEEP_INSET)
@@ -112,9 +158,8 @@ const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) =
     to: { x: w / 2, y: h * SWEEP_INSET },
   })
   const trail: { t: number; p: Point }[] = []
-  s.ring.style.strokeDashoffset = String(RING_CIRC)
-  for (const [i, sweep] of sweeps.entries()) {
-    s.count.textContent = `sweep ${i + 1} of ${sweeps.length}`
+  setRing(s, 0)
+  for (const sweep of sweeps) {
     place(s, sweep.from)
     await wait(SETTLE_MS)
     const start = performance.now()
@@ -126,7 +171,7 @@ const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) =
         const p = { x: lerp(sweep.from.x, sweep.to.x, e), y: lerp(sweep.from.y, sweep.to.y, e) }
         place(s, p)
         trail.push({ t: now, p })
-        const lagged = trail.find((e) => e.t >= now - PURSUIT_LAG_MS)
+        const lagged = trail.find((t) => t.t >= now - PURSUIT_LAG_MS)
         const sample = opts.samples()
         if (sample?.faceFound && lagged && now - start > PURSUIT_LAG_MS) {
           out.push({ features: featuresOf(sample, opts.mode), target: lagged.p })
@@ -139,23 +184,46 @@ const collectPursuit = async (s: Screen, opts: Opts, out: CalibrationSample[]) =
   }
 }
 
+const POINT_HINT: Record<InputMode, string> = {
+  gaze: 'Keep your head still. Follow the dot with your eyes only.',
+  head: 'Turn your head so your nose points at the dot. Your eyes can rest.',
+  both: 'Look at the dot the natural way, turning your head a little.',
+}
+
 export const runCalibration = async (overlay: Overlay, opts: Opts): Promise<Calibration> => {
-  const hints: Record<InputMode, string> = {
-    gaze: 'Keep your head still and follow the dot with your eyes only.',
-    head: 'Turn your head to point your nose at the dot. Your eyes can rest.',
-    both: 'Look at the dot the natural way: turn your head a little and let your eyes do the rest.',
-  }
-  const hint = hints[opts.mode]
-  const s = mount(overlay, hint)
-  const dots: CalibrationSample[] = []
+  const s = mount(overlay)
+  const scale = (p: Point) => ({ x: p.x * opts.screen.w, y: p.y * opts.screen.h })
+  const training: CalibrationSample[] = []
   const pursuit: CalibrationSample[] = []
-  await collectDots(s, opts, dots)
+  const fit = () => fitRobust([...trimOutliers(training), ...pursuit], opts.screen)
+
+  await showCard(s, 'Follow the dot.', POINT_HINT[opts.mode])
+  await collectDots(s, opts, calibrationTargets(opts.screen), training)
   if (opts.full) {
-    s.hint.textContent = 'Now follow the dot as it moves. Stay with it, do not jump ahead.'
+    await showCard(s, 'Now it moves.', 'Stay with the dot as it glides. Do not jump ahead of it.')
     await collectPursuit(s, opts, pursuit)
   }
+
+  let cal = fit()
+  if (!Number.isFinite(cal.rmsPx)) {
+    overlay.hide()
+    return cal
+  }
+
+  // check on dots the fit has never seen. if the miss is too big, learn from them and check again
+  await showCard(s, 'Quick check.', 'A few more dots. Just look at each one.')
+  for (let round = 0; round < MAX_CHECK_ROUNDS; round++) {
+    const held: CalibrationSample[] = []
+    const set = CHECK_SETS[round % CHECK_SETS.length] ?? []
+    await collectDots(s, opts, set.map(scale), held)
+    const v = validate(cal, trimOutliers(held))
+    cal = { ...cal, validationFraction: v.fraction }
+    if (v.fraction <= GOOD_DIAGONAL_FRACTION || round === MAX_CHECK_ROUNDS - 1) break
+    training.push(...held)
+    cal = { ...fit(), validationFraction: v.fraction }
+  }
   overlay.hide()
-  return fitRobust([...trimOutliers(dots), ...pursuit], opts.screen)
+  return cal
 }
 
 const WORDS = {
@@ -182,12 +250,14 @@ export const showCalibrationResult = (
     return
   }
   const q = quality(cal)
-  const pct = Math.round(cal.diagonalFraction * 100)
+  const pct = Math.round(missFraction(cal) * 100)
+  const how =
+    cal.validationFraction === undefined ? 'fit error' : 'measured on dots it had not seen'
   const el = overlay.show(`
     <div class="sheet">
       <h1>Calibration: ${q}</h1>
       <p>${WORDS[q]}</p>
-      <p class="fine">Average miss ${pct}% of the screen diagonal over ${cal.samples} samples. Under 5% is good, over 12% is poor.</p>
+      <p class="fine">Miss ${pct}% of the screen diagonal, ${how}, from ${cal.samples} samples. Under 5% is good, over 12% is poor.</p>
       <div class="row">
         <button class="big-button gz" type="button" id="use">${q === 'poor' ? 'Use it anyway' : 'Start'}</button>
         <button class="big-button gz" type="button" id="redo">Redo</button>

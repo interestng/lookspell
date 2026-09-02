@@ -36,7 +36,7 @@ export const showStart = (
             ${choice('confirmMode', 'blink', current.confirmMode === 'blink', 'Long blink', 'Point at a zone, then close both eyes for about half a second. Normal blinks are ignored.')}
           </div>
         </div>
-        <p>Next comes calibration, about 35 seconds: follow a dot to nine spots, then follow it as it glides across the screen. Then the board. Sit an arm's length away with light on your face, not behind you.</p>
+        <p>Next comes calibration, under a minute: follow a dot to nine spots, follow it as it glides across the screen, then a quick check on a few more dots that measures how accurate it really is. Then the board. Sit an arm's length away with light on your face, not behind you.</p>
         <p><button class="big-button" type="submit">Turn on the camera</button></p>
         <p class="fine">Someone needs to press this once. After that everything, including settings, works by looking. Video is processed on this device and never leaves it.</p>
       </form>
